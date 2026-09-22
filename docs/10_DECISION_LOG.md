@@ -35,3 +35,12 @@ On 2026-09-22, official Genspark Code, Connectors, and officially linked CLI sur
 Decision: `REMOTE_CODE_NOT_VERIFIED`. Do not infer remote Code control from generic agent tasks, GitHub integration, or inbound MCP support. Make no runtime adapter change and keep every Genspark executor capability disabled.
 
 Evidence: `docs/16_PHASE_3_GENSPARK_CODE_CAPABILITY_DISCOVERY.md` and `docs/17_PHASE_3_GENSPARK_CODE_PROOF_REPORT.md`.
+
+## D011 — Phase 3B official CLI executor decision
+On 2026-09-22, installed official CLI version 1.13.0 was inspected using its local help. The CLI documented supported generic task types and project/run lifecycle commands. Exactly one harmless `super_agent` proof was attempted with documented flags and a fixed-text request. The service rejected it before task creation with `free_plan_block`, stating that the CLI requires a paid plan or at least 500 credits; the authenticated test account had 100 credits.
+
+Decision: `CLI_EXECUTOR_NOT_VERIFIED`. No project ID, run ID, status, result, or artifact was produced, so the minimum executor lifecycle was not established. Do not implement `GensparkCliExecutor`; keep status/result/cancel/retry fail-closed. Retry remains false, and documented stop command existence is not treated as verified cancel behavior. The restriction is an account/environment blocker, not a universal product claim.
+
+A later positive generic CLI proof would still require a separate trusted runner because Cloudflare Workers cannot spawn the CLI. It would not alter `REMOTE_CODE_NOT_VERIFIED` or prove remote Genspark Code control.
+
+Evidence: `docs/18_GENSPARK_OFFICIAL_CLI_EXECUTOR_DISCOVERY.md` and `docs/20_PHASE_3B_GENSPARK_CLI_PROOF_REPORT.md`.

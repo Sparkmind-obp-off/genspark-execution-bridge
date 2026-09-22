@@ -383,3 +383,19 @@ The official CLI provides a reproducible, safe, auditable executor path for at l
 The evidence is insufficient to establish a safe official executor path.
 
 Do not use stronger language than the evidence supports.
+
+---
+
+## 16. Phase 3B execution outcome — 2026-09-22
+
+The installed official CLI reported version 1.13.0. Its help confirmed `super_agent` as a supported generic task type and documented async create, status, info, artifacts, artifact resolution, and stop commands.
+
+Exactly one harmless fixed-output `super_agent` proof was attempted. The service rejected the request before task creation with error code `free_plan_block`, stating that the CLI requires a paid plan or a credit balance of at least 500. The authenticated proof account had a 100-credit balance. No restriction was bypassed.
+
+Because no `project_id`, `run_id`, terminal state, result, or artifact was created, lifecycle correlation could not be established. Stop and retry were not tested. No runtime adapter was implemented.
+
+Final Phase 3B classification: **CLI_EXECUTOR_NOT_VERIFIED**.
+
+Detailed evidence: `docs/20_PHASE_3B_GENSPARK_CLI_PROOF_REPORT.md`.
+
+The existing Phase 3 boundary remains **REMOTE_CODE_NOT_VERIFIED**. Genspark CLI executor proof does not prove remote Genspark Code control.

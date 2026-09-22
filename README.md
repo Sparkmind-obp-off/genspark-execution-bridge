@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Active; health, MCP initialization, tool discovery, and `get_project` verified in production on 2026-09-22. Phase 3 found no verified official remote Genspark Code execution interface.
+- **Status:** Active; health, MCP initialization, tool discovery, and `get_project` verified in production on 2026-09-22. Phase 3 found no verified official remote Genspark Code execution interface. Phase 3B's single generic CLI proof attempt was blocked before task creation by `free_plan_block`, so the CLI executor is not verified.
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -45,7 +45,8 @@ Included:
 | External application submitting Genspark tasks | Unverified/disabled |
 | Remote Genspark Code execution | Unverified/disabled |
 | Genspark status/result/cancel/retry API | Unverified/disabled |
-| Official generic Genspark CLI agent tasks | Observed, but Code is not an available `task create` type; insufficient for remote Code proof |
+| Official generic Genspark CLI agent tasks | Command surface and supported types observed; one `super_agent` proof submission was rejected before creation by `free_plan_block` |
+| Phase 3B CLI executor decision | `CLI_EXECUTOR_NOT_VERIFIED`; no project/run identity, terminal state, or result was produced |
 | Phase 3 remote Code decision | `REMOTE_CODE_NOT_VERIFIED`; executor remains fail-closed |
 | Production task execution through the bridge | Not part of Phase 1 acceptance |
 
@@ -144,6 +145,7 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 ## Not yet implemented
 
 - Official external-to-Genspark Code submission, execution identity, status, result, cancel, retry, or Code-mode integration. Phase 3 recorded `REMOTE_CODE_NOT_VERIFIED`.
+- A `GensparkCliExecutor`. Phase 3B recorded `CLI_EXECUTOR_NOT_VERIFIED` after the authorized account was blocked by the CLI's paid-plan/500-credit gate before task creation.
 - Production mutations, deployments initiated as tasks, or write-capable MCP tools.
 - Durable task/execution/audit persistence.
 - Authentication, multi-tenancy, operator UI, and approval workflows.
@@ -153,12 +155,13 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 ## Recommended next steps
 
 1. Add durable, correlation-aware audit storage before using `/audit` as cross-request production evidence.
-2. Re-run current-account Connector/MCP inventory only on an eligible account; the Phase 3 account was blocked by the CLI plan/credit gate.
-3. Execute the read-only MCP proof from Genspark Connectors without treating that direction as remote Code control.
-4. Capture server-side audit evidence without credentials.
-5. Re-open remote Code enablement only if an official Code-specific API/CLI/Connector contract is published and safely reproduced.
-6. Add authentication before exposing user-specific task data.
-7. Add write tools only after explicit authorization, idempotency, and production approval controls exist.
+2. Re-run the single harmless Phase 3B `super_agent` lifecycle proof only on an authorized account that satisfies the CLI plan/credit requirement; require identity, terminal state, and matching output before implementing an adapter.
+3. Re-run current-account Connector/MCP inventory only on an eligible account; the Phase 3 account was blocked by the CLI plan/credit gate.
+4. Execute the read-only MCP proof from Genspark Connectors without treating that direction as remote Code control.
+5. Capture server-side audit evidence without credentials.
+6. Re-open remote Code enablement only if an official Code-specific API/CLI/Connector contract is published and safely reproduced.
+7. Add authentication before exposing user-specific task data.
+8. Add write tools only after explicit authorization, idempotency, and production approval controls exist.
 
 ## Project references
 
@@ -169,5 +172,7 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - MCP proof runbook: `docs/11_MCP_PROOF_RUNBOOK.md`
 - Phase 3 discovery: `docs/16_PHASE_3_GENSPARK_CODE_CAPABILITY_DISCOVERY.md`
 - Phase 3 proof report: `docs/17_PHASE_3_GENSPARK_CODE_PROOF_REPORT.md`
+- Phase 3B CLI discovery: `docs/18_GENSPARK_OFFICIAL_CLI_EXECUTOR_DISCOVERY.md`
+- Phase 3B CLI proof report: `docs/20_PHASE_3B_GENSPARK_CLI_PROOF_REPORT.md`
 
-Official sources used for Phase 3 are listed in the proof report. The final decision is `REMOTE_CODE_NOT_VERIFIED`.
+Official sources used for Phase 3 and Phase 3B are listed in their proof reports. The decisions are `REMOTE_CODE_NOT_VERIFIED` and `CLI_EXECUTOR_NOT_VERIFIED`. Genspark CLI executor proof does not prove remote Genspark Code control.

@@ -26,6 +26,13 @@ Official Code status and artifact retrieval are verified.
 
 If G1/G2/G3 fail, keep Genspark as a non-remote integration and use alternative executors. Phase 3 therefore records `REMOTE_CODE_NOT_VERIFIED` and keeps all Genspark executor capabilities disabled.
 
+## Gate G9 — Official CLI Executor
+At least one officially supported generic CLI task must be submitted, correlated through its own project/run identity, observed in a terminal state, and matched to its result or artifact.
+
+**Phase 3B status (2026-09-22): NOT PASSED — `CLI_EXECUTOR_NOT_VERIFIED`.** The installed official CLI documented supported task types and lifecycle commands, but the single harmless `super_agent` proof submission was rejected before task creation with `free_plan_block`. No project ID, run ID, terminal state, result, or artifact was available. Stop and retry remain unverified, and no CLI adapter was implemented.
+
+This plan/credit restriction is an environment limitation rather than proof of universal unavailability. Re-run G9 only in an authorized eligible account. Passing G9 would establish only a generic CLI executor; it would not pass G1/G2/G3 for Genspark Code.
+
 ## Gate T1 — Tool execution
 GitHub test branch, build verification, and preview deployment work.
 
@@ -47,4 +54,4 @@ Do not need to own:
 - every execution runtime
 
 ## Current decision
-Build an executor-neutral control layer. Do not lock the architecture to direct control of genspark.ai/code. Reconsider only after a Code-specific official/public interface is documented and safely reproduced.
+Build an executor-neutral control layer. Do not lock the architecture to direct control of genspark.ai/code. Phase 3B did not verify a generic CLI executor because the proof task was plan/credit-gated before creation. Reconsider a CLI runner only after a complete generic task lifecycle is reproduced; reconsider Code only after a separate Code-specific official/public interface is documented and safely reproduced.
