@@ -3,6 +3,7 @@ import * as z from "zod/v4";
 export const taskTypeSchema = z.enum([
   "read",
   "mock_execution",
+  "execution",
   "genspark_execution",
   "external_write",
   "production_deployment"

@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Active; health, MCP initialization, tool discovery, and `get_project` verified in production on 2026-09-22. Phase 3 found no verified official remote Genspark Code execution interface. Phase 3B's single generic CLI proof attempt was blocked before task creation by `free_plan_block`, so the CLI executor is not verified.
+- **Status:** Active; health, MCP initialization, tool discovery, and `get_project` verified in production on 2026-09-22. Phase 4 produced `DAYTONA_EXECUTION_PROOF_PASS` and added a minimal provider-neutral Daytona adapter. The adapter is not exposed as a public execution route. Phase 3 Genspark Code and Phase 3B generic CLI execution remain unverified/disabled.
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -48,7 +48,11 @@ Included:
 | Official generic Genspark CLI agent tasks | Command surface and supported types observed; one `super_agent` proof submission was rejected before creation by `free_plan_block` |
 | Phase 3B CLI executor decision | `CLI_EXECUTOR_NOT_VERIFIED`; no project/run identity, terminal state, or result was produced |
 | Phase 3 remote Code decision | `REMOTE_CODE_NOT_VERIFIED`; executor remains fail-closed |
-| Production task execution through the bridge | Not part of Phase 1 acceptance |
+| Daytona free-tier gate | `FREE_TIER_PASS` from current official pricing/limits/billing plus authenticated account access |
+| Daytona sandbox, execution, filesystem, logs, and cleanup | Live verified on 2026-09-22; `DAYTONA_EXECUTION_PROOF_PASS` |
+| Daytona vault-secret injection | Documented, not live-tested; partial |
+| Daytona cancel and retry semantics | Unverified/disabled; fail closed |
+| Production task execution through the public bridge | Not exposed in Phase 4 |
 
 A Genspark web UI URL is not treated as an API. No private endpoint, token format, or protocol is fabricated.
 
@@ -132,7 +136,8 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 
 - Canonical tasks, executor results, policy decisions, and verification outcomes are strongly typed TypeScript objects.
 - `MockExecutor` state and audit events are runtime-local in-memory data for deterministic Phase 1 behavior.
-- No persistent database, KV namespace, R2 bucket, or real credential store is used in Phase 1.
+- No persistent database, KV namespace, or R2 bucket is used. Daytona credentials are runtime secrets only and are never accepted in canonical task input.
+- `DaytonaExecutor` stores terminal status/results in-memory and maps provider sandbox/command IDs into canonical correlation data.
 - A durable audit backend can later implement `AuditSink` without changing domain logic.
 
 ## Security boundaries
@@ -140,7 +145,8 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - Default allow: low/medium-risk read operations and mock execution with proven capabilities.
 - Default deny: arbitrary external writes, production deployment, high/critical risk, secrets in task input, unknown executor capabilities, and Genspark private/web endpoints.
 - `.env.example` contains empty placeholders only; real `.env*` files are ignored.
-- API keys, bearer tokens, passwords, cookies, authorization headers, secret-like fields, and credential-bearing URLs are redacted from audit output.
+- API keys, bearer tokens, passwords, cookies, authorization headers, secret-like fields, credential-bearing URLs, and `dtn_...` Daytona tokens are redacted from audit output.
+- Daytona tasks are limited to low risk, use network-blocked TTL-bounded sandboxes, and require stop/delete cleanup.
 
 ## Not yet implemented
 
@@ -152,24 +158,22 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - A completed live Genspark-to-MCP connection proof for a deployed URL.
 - Durable cross-request MCP audit evidence in production; the current in-memory sink is isolate-local.
 
-## Phase 4 — Execution Platform Discovery
+## Phase 4 — Daytona execution proof
 
-Phase 4 searches for a legitimate programmatic execution platform that can sit behind the executor-neutral control plane.
+Phase 4 completed the proof-first qualification of Daytona as execution infrastructure behind the provider-neutral control plane.
 
-**Requirement #1: Free-Tier Gate.** A candidate must have a legitimate free tier, free trial, or free credits sufficient for the initial disposable live proof before it is eligible for selection. Paid capacity can be evaluated later; the initial architectural proof must not require spending money.
+- Free-tier gate: `FREE_TIER_PASS`
+- Live result: `DAYTONA_EXECUTION_PROOF_PASS`
+- Exact marker: `PHASE_4_EXECUTION_PROOF_OK`
+- Verified live: authenticated SDK access, sandbox creation, synchronous session command, exit status/result, command logs, tiny filesystem round trip, network blocking, stop, delete, and cleanup verification.
+- Partially verified: Daytona vault-secret mechanism is documented but was not needed or live-tested.
+- Disabled: async cancellation and retry/idempotency semantics.
 
-Gate outcomes are:
-
-- `FREE_TIER_PASS`
-- `FREE_TIER_PARTIAL`
-- `FREE_TIER_FAIL`
-- `FREE_TIER_UNVERIFIED`
-
-Initial candidates include Daytona, E2B, and Modal, subject to current official-account verification. This is a qualification matrix, not a ranking. See `docs/21_EXECUTION_PLATFORM_DISCOVERY.md`.
+The adapter accepts canonical low-risk `execution` tasks with `input.command` and verified capabilities. It remains internal; no public task submission or write-capable MCP tool was added. See `docs/22_DAYTONA_EXECUTION_PLATFORM_PROOF.md` and `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`.
 
 ## Recommended next steps
 
-1. Add durable, correlation-aware audit storage before using `/audit` as cross-request production evidence.
+1. Add durable, correlation-aware task/result/audit storage before exposing any authenticated execution route.
 2. Re-run the single harmless Phase 3B `super_agent` lifecycle proof only on an authorized account that satisfies the CLI plan/credit requirement; require identity, terminal state, and matching output before implementing an adapter.
 3. Re-run current-account Connector/MCP inventory only on an eligible account; the Phase 3 account was blocked by the CLI plan/credit gate.
 4. Execute the read-only MCP proof from Genspark Connectors without treating that direction as remote Code control.
@@ -189,5 +193,7 @@ Initial candidates include Daytona, E2B, and Modal, subject to current official-
 - Phase 3 proof report: `docs/17_PHASE_3_GENSPARK_CODE_PROOF_REPORT.md`
 - Phase 3B CLI discovery: `docs/18_GENSPARK_OFFICIAL_CLI_EXECUTOR_DISCOVERY.md`
 - Phase 3B CLI proof report: `docs/20_PHASE_3B_GENSPARK_CLI_PROOF_REPORT.md`
+- Phase 4 Daytona proof plan: `docs/22_DAYTONA_EXECUTION_PLATFORM_PROOF.md`
+- Phase 4 Daytona proof report: `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`
 
-Official sources used for Phase 3 and Phase 3B are listed in their proof reports. The decisions are `REMOTE_CODE_NOT_VERIFIED` and `CLI_EXECUTOR_NOT_VERIFIED`. Genspark CLI executor proof does not prove remote Genspark Code control.
+Official sources used for Phase 3, Phase 3B, and Phase 4 are listed in their proof reports. The decisions are `REMOTE_CODE_NOT_VERIFIED` and `CLI_EXECUTOR_NOT_VERIFIED`. Genspark CLI executor proof does not prove remote Genspark Code control.

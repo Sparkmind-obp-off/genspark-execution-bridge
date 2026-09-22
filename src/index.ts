@@ -15,6 +15,7 @@ export * from "./application/control-plane";
 export * from "./audit/audit";
 export * from "./domain/state-machine";
 export * from "./domain/task";
+export * from "./executors/daytona";
 export * from "./executors/executor";
 export * from "./executors/genspark";
 export * from "./executors/mock";
@@ -30,8 +31,10 @@ export default {
       return Response.json({
         service: "genspark-execution-bridge",
         status: "ok",
-        phase: 1,
+        phase: 4,
         production_execution: false,
+        daytona_execution_proof: "pass",
+        daytona_public_execution: false,
         genspark_remote_execution: "unverified"
       });
     }

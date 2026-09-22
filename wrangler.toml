@@ -2,6 +2,7 @@ name = "genspark-execution-bridge-proof"
 main = "src/index.ts"
 compatibility_date = "2026-09-22"
 workers_dev = true
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
-PROOF_VERSION = "p0-p3-v1"
+PROOF_VERSION = "p0-p4-v1"

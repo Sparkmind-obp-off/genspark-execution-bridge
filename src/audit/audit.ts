@@ -37,9 +37,11 @@ const sensitiveKey = /(?:api[-_]?key|access[-_]?token|refresh[-_]?token|bearer|p
 const bearerPattern = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const credentialUrlPattern = /\bhttps?:\/\/[^\s/@:]+:[^\s/@]+@[^\s]+/gi;
 const sensitiveQueryPattern = /([?&](?:api[-_]?key|token|access[-_]?token|password|authorization|secret)=)[^&#\s]+/gi;
+const daytonaTokenPattern = /\bdtn_[A-Za-z0-9]+\b/g;
 
 function redactString(value: string): string {
   return value
+    .replace(daytonaTokenPattern, "[REDACTED_DAYTONA_TOKEN]")
     .replace(bearerPattern, "Bearer [REDACTED]")
     .replace(credentialUrlPattern, "[REDACTED_CREDENTIAL_URL]")
     .replace(sensitiveQueryPattern, "$1[REDACTED]");

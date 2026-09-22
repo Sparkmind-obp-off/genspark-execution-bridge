@@ -44,3 +44,13 @@ Decision: `CLI_EXECUTOR_NOT_VERIFIED`. No project ID, run ID, status, result, or
 A later positive generic CLI proof would still require a separate trusted runner because Cloudflare Workers cannot spawn the CLI. It would not alter `REMOTE_CODE_NOT_VERIFIED` or prove remote Genspark Code control.
 
 Evidence: `docs/18_GENSPARK_OFFICIAL_CLI_EXECUTOR_DISCOVERY.md` and `docs/20_PHASE_3B_GENSPARK_CLI_PROOF_REPORT.md`.
+
+## D012 — Phase 4 Daytona execution platform decision
+
+On 2026-09-22, current official pricing, billing, limits, SDK, sandbox, execution, filesystem, secret, and terms sources established `FREE_TIER_PASS`: $200 free compute is included, the free trial states no credit card is required, and Tier 1 requires email verification rather than a linked card/top-up. The supplied least-privilege API key authenticated with sandbox write/delete permissions. No payment was made.
+
+A live network-blocked disposable sandbox was created through official TypeScript SDK 0.216.0. A named session command emitted `PHASE_4_EXECUTION_PROOF_OK`, returned exit code 0, exposed command logs, and created a tiny file that was read back through the filesystem API. Sandbox, session, command, and bridge correlation IDs were captured. Stop reached `stopped`, deletion completed, and subsequent lookup confirmed cleanup.
+
+Decision: `DAYTONA_EXECUTION_PROOF_PASS`. Implement the smallest `DaytonaExecutor` behind a replaceable provider boundary. Preserve the canonical executor signatures and fail-closed policy. Enable only synchronous low-risk `execution` tasks with verified `submit`, local status/result mapping, code mode, read/filesystem evidence, and mandatory cleanup. Keep cancel and retry disabled because async cancellation and retry/idempotency were not proven. Do not expose a public Daytona submission endpoint in Phase 4.
+
+Evidence: `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`.

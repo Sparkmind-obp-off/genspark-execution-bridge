@@ -1,7 +1,7 @@
 # 22 — Daytona Execution Platform Proof
 
 **Phase:** 4  
-**Status:** READY FOR LIVE PROOF  
+**Status:** `DAYTONA_EXECUTION_PROOF_PASS` (live proof completed 2026-09-22)
 **Primary candidate:** Daytona  
 **Gate 0:** Free-Tier Gate — mandatory
 
@@ -156,17 +156,17 @@ Do not silently downgrade a failed gate to a pass.
 
 | Gate | Status | Evidence |
 |---|---|---|
-| G0 Free tier | UNVERIFIED | Pending live account proof |
-| G1 API/SDK | UNVERIFIED | Pending |
-| G2 Sandbox | UNVERIFIED | Pending |
-| G3 Execution | UNVERIFIED | Pending |
-| G4 Filesystem | UNVERIFIED | Pending |
-| G5 Status/result | UNVERIFIED | Pending |
-| G6 Logs | UNVERIFIED | Pending |
-| G7 Lifecycle | UNVERIFIED | Pending |
-| G8 Secrets | UNVERIFIED | Pending |
-| G9 Network | UNVERIFIED | Pending |
-| G10 Correlation | UNVERIFIED | Pending |
+| G0 Free tier | VERIFIED | `FREE_TIER_PASS`: official $200 free compute, no-card free trial, and Tier 1 email-only requirement; account API key authenticated without purchase |
+| G1 API/SDK | VERIFIED | Official TypeScript SDK 0.216.0 authenticated and executed the live proof |
+| G2 Sandbox | VERIFIED | Disposable sandbox reached `started` |
+| G3 Execution | VERIFIED | Session command exited 0 and emitted the exact proof marker |
+| G4 Filesystem | VERIFIED | Tiny file was created and read back through the SDK |
+| G5 Status/result | VERIFIED | Sandbox state, command status, exit code, and stdout captured |
+| G6 Logs | VERIFIED | Session command logs returned matching stdout and empty stderr |
+| G7 Lifecycle | VERIFIED | Stop reached `stopped`; delete succeeded; lookup confirmed absence |
+| G8 Secrets | PARTIAL | Environment credential injection and redaction verified; Daytona vault injection documented but not live-tested |
+| G9 Network | VERIFIED | Proof sandbox used `networkBlockAll: true` |
+| G10 Correlation | VERIFIED | Bridge correlation, sandbox, session, and command identities captured |
 
 This matrix must only be updated from evidence.
 
@@ -219,3 +219,7 @@ Relevant official references include:
 - Daytona MCP: https://www.daytona.io/docs/mcp
 
 URLs above are documentation references for the proof agent; final reports must verify current content rather than assuming it remains unchanged.
+
+## 13. Completed proof
+
+The live proof, evidence classification, adapter decision, limitations, and validation results are recorded in `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`. The credential is intentionally excluded. The supplied credential should be rotated after verification because it was shared through the conversation channel.

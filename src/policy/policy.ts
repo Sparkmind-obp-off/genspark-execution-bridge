@@ -69,7 +69,7 @@ export function evaluatePolicy(
   if (task.risk_level === "high" || task.risk_level === "critical") {
     reasons.push({ code: "HIGH_RISK_DENIED", message: `Risk level '${task.risk_level}' is denied by the Phase 1 policy.` });
   }
-  if (!(["read", "mock_execution"] as string[]).includes(task.type)) {
+  if (!(["read", "mock_execution", "execution"] as string[]).includes(task.type)) {
     reasons.push({ code: "TASK_TYPE_DENIED", message: `Task type '${task.type}' is not allowed by default.` });
   }
 
