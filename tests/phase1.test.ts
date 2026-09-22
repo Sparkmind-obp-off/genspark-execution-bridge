@@ -9,6 +9,7 @@ import { ExecutorError } from "../src/executors/executor";
 import { GensparkExecutor } from "../src/executors/genspark";
 import { MockExecutor } from "../src/executors/mock";
 import { invokeSafeTool, safeMcpToolSchemas } from "../src/mcp/safe-tools";
+import { createSafeMcpHandler } from "../src/mcp/server";
 import { evaluatePolicy } from "../src/policy/policy";
 import { verifyExecution } from "../src/verification/verification";
 
@@ -225,4 +226,77 @@ test("control plane completes only after independent verification", async () => 
   assert.equal(rejected.state, "failed");
   assert.equal(rejected.verification?.accepted, false);
   assert.equal(sink.events().some((event) => event.event === "verification.rejected"), true);
+});
+
+
+test("MCP Streamable HTTP endpoint completes legacy initialize and tools/list discovery in-process", async () => {
+  const { sink, auditor } = testAuditor();
+  const handler = createSafeMcpHandler(auditor);
+
+  const initialize = await handler.fetch(new Request("https://test.local/mcp", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream"
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "regression-test", version: "1.0.0" }
+      }
+    })
+  }));
+
+  assert.equal(initialize.ok, true);
+  assert.equal(initialize.status, 200);
+  const initializeBody = await initialize.json() as {
+    result?: { protocolVersion?: string; capabilities?: { tools?: unknown }; serverInfo?: { name?: string } };
+  };
+  assert.equal(initializeBody.result?.protocolVersion, "2025-11-25");
+  assert.equal(initializeBody.result?.serverInfo?.name, "genspark-execution-bridge");
+  assert.ok(initializeBody.result?.capabilities?.tools !== undefined);
+
+  const toolsList = await handler.fetch(new Request("https://test.local/mcp", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream"
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/list",
+      params: {}
+    })
+  }));
+
+  assert.equal(toolsList.ok, true);
+  assert.equal(toolsList.status, 200);
+  const toolsBody = await toolsList.json() as {
+    result?: { tools?: Array<{ name?: string }> };
+  };
+  assert.deepEqual(
+    toolsBody.result?.tools?.map((tool) => tool.name).sort(),
+    ["get_project", "get_status", "get_task"]
+  );
+
+  const events = sink.events().map((event) => event.event);
+  assert.ok(events.includes("mcp.connection.checked"));
+  assert.ok(events.filter((event) => event === "mcp.tool.discovered").length >= 3);
+});
+
+test("MCP endpoint explicitly handles browser/preflight probes without changing MCP transport semantics", async () => {
+  const response = await (await import("../src/index")).default.fetch(
+    new Request("https://test.local/mcp", {
+      method: "OPTIONS",
+      headers: { origin: "https://example.com", "access-control-request-method": "POST" }
+    })
+  );
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("access-control-allow-origin"), "*");
+  assert.match(response.headers.get("access-control-allow-headers") ?? "", /MCP-Protocol-Version/);
 });
