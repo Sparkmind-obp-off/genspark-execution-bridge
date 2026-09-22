@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Active; health verified on 2026-09-22
+- **Status:** Active; health, MCP initialization, tool discovery, and `get_project` verified in production on 2026-09-22
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -39,7 +39,7 @@ Included:
 | Verification can reject false completion | Proven by local tests |
 | MCP server exposes only three read tools with schemas | Proven by code/tests |
 | Audit events and sensitive-value redaction | Proven by local tests |
-| Cloudflare Worker health/MCP serving | Locally/build verifiable; production URL must be checked after deploy |
+| Cloudflare Worker health/MCP serving | Proven in production on 2026-09-22 |
 | Genspark Connectors and custom/community MCP support | Confirmed by official documentation |
 | Genspark invoking this deployed MCP server | Requires an external connection proof; not claimed by unit tests |
 | External application submitting Genspark tasks | Unverified/disabled |
@@ -68,7 +68,7 @@ Unknown resources return `UNKNOWN_RESOURCE`; malformed inputs return `INVALID_IN
 | `GET /mcp` | MCP transport request handling where supported by the SDK |
 | `GET /audit` | Runtime-local, already-redacted audit evidence |
 
-The in-memory audit sink is intentionally replaceable through the `AuditSink` interface and is not durable across Worker restarts.
+The in-memory audit sink is intentionally replaceable through the `AuditSink` interface and is not durable across Worker restarts or isolates. Production MCP initialization, discovery, and `get_project` calls were verified, but a later `/audit` request can reach a different isolate and return no prior events. Durable cross-request audit evidence is therefore not yet claimed.
 
 ## Install, test, and build
 
@@ -146,14 +146,16 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - Durable task/execution/audit persistence.
 - Authentication, multi-tenancy, operator UI, and approval workflows.
 - A completed live Genspark-to-MCP connection proof for a deployed URL.
+- Durable cross-request MCP audit evidence in production; the current in-memory sink is isolate-local.
 
 ## Recommended next steps
 
-1. Deploy and execute the read-only MCP proof from Genspark Connectors.
-2. Capture server-side audit evidence without credentials.
-3. Update the capability matrix only from official/public evidence.
-4. Add durable storage and authentication before exposing user-specific task data.
-5. Add write tools only after explicit authorization, idempotency, and production approval controls exist.
+1. Add durable, correlation-aware audit storage before using `/audit` as cross-request production evidence.
+2. Execute the read-only MCP proof from Genspark Connectors.
+3. Capture server-side audit evidence without credentials.
+4. Update the capability matrix only from official/public evidence.
+5. Add authentication before exposing user-specific task data.
+6. Add write tools only after explicit authorization, idempotency, and production approval controls exist.
 
 ## Project references
 

@@ -53,15 +53,23 @@ A successful local MCP initialization/discovery test proves that this server imp
 
 It does **not** prove that Genspark's current connector accepts this deployment, nor does it prove remote control of Genspark Code.
 
-## Deployment gate
+## Deployment result
 
-The code changes are committed to `main`.
+The code changes are committed and pushed to `main` at:
 
-Before retrying **Add MCP Server** in Genspark, the updated `main` deployment must be live at:
+`https://github.com/Sparkmind-obp-off/genspark-execution-bridge`
+
+The updated build was deployed through the Cloudflare Pages BYOK command path and is live at:
 
 `https://genspark-execution-bridge.pages.dev/mcp`
 
-The available GitHub connector can commit and inspect the repository, but it cannot directly invoke the Cloudflare Pages deployment command. Therefore the deployment must occur through the existing Cloudflare Pages integration/command path.
+Production verification completed successfully for:
+
+- `GET /health`;
+- `OPTIONS /mcp` with HTTP 204 and the expected CORS headers;
+- MCP `initialize` with protocol version `2025-11-25`;
+- MCP `tools/list`, returning `get_project`, `get_status`, and `get_task`;
+- MCP `tools/call` for `get_project`, returning `proof-project`.
 
 ## Retry configuration
 
@@ -75,10 +83,16 @@ After the new deployment is confirmed live:
 
 Do not switch to SSE and do not add guessed authentication headers.
 
+## Audit evidence boundary
+
+The current `InMemoryAuditSink` is isolate-local. Production MCP calls succeeded, but a subsequent `GET /audit` request returned no prior events because Cloudflare may route it to another isolate. The in-process regression suite proves that MCP audit events are emitted; it does not prove durable cross-request production audit retrieval.
+
+This limitation must not be represented as a passed external audit gate. Durable storage or a correlated observability mechanism is required before `/audit` can serve as reliable production evidence.
+
 ## Next acceptance gate
 
-The next proof is:
+The next proof remains:
 
-`Genspark Connector -> /mcp -> tool discovery -> get_project -> audit evidence`
+`Genspark Connector -> /mcp -> tool discovery -> get_project -> correlated audit evidence`
 
-Only after that passes should the project proceed toward any executor-level Genspark integration.
+Use this deployed endpoint for the Genspark connector retry. Only after the connector call and correlated server-side evidence both pass should the project proceed toward executor-level Genspark integration.
