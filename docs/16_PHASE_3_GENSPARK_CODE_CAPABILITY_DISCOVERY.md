@@ -1,124 +1,162 @@
 # Phase 3 — Genspark Code Capability Discovery
 
 ## Purpose
-Determine, with official evidence, whether the Execution Bridge can use Genspark Code as a remotely invokable execution provider.
+Determine, using only official/public evidence and safe observations, whether Genspark Code can be used as a remotely invokable execution provider by the Execution Bridge.
 
-This is a capability-discovery and proof phase. It must not assume that the existence of Genspark Code implies a public API for controlling it.
+This phase separates three different capabilities:
 
-## Current official baseline
-As of 2026-09-23, official Genspark documentation establishes:
-- Genspark Code is an autonomous coding product for building applications, with planning, coding, testing, and deployment capabilities.
-- Genspark Connectors support API Call and MCP connection types.
-- Genspark can connect to custom/community MCP servers, subject to account and organization policy.
-- GitHub is an available Genspark API Call connector.
-- The official connector documentation does not by itself document a public API that lets an external application submit a task directly to Genspark Code.
+1. the Genspark Code web product;
+2. externally callable Genspark agent/task interfaces;
+3. Genspark consuming third-party Connector or MCP tools.
 
-Sources:
-- https://www.genspark.ai/helpcenter/ai-developer
+The existence of one does not prove either of the others.
+
+## Discovery date and baseline
+
+Discovery was performed on 2026-09-22 UTC against repository commit `96c128cd66ccc91228942c21e164f95569fe03bc`.
+
+Official sources inspected:
+
 - https://www.genspark.ai/code/
+- https://www.genspark.ai/helpcenter/ai-developer
 - https://www.genspark.ai/helpcenter/connectors-and-integrations
+- https://www.genspark.ai/blog/gen-1-slides
+- https://www.npmjs.com/package/@genspark/cli (the CLI package linked by the official Genspark blog)
 
-## Capability classification
-Use exactly one status for each capability:
-- VERIFIED — official/public interface exists and a reproducible proof succeeds.
-- PARTIALLY VERIFIED — official evidence exists, but the complete end-to-end contract is not proven.
-- UNVERIFIED — plausible or mentioned indirectly, but no sufficient official interface/proof exists.
-- NOT AVAILABLE — official documentation/product behavior indicates the capability is not exposed.
+The official product/help pages establish that Genspark Code is an autonomous coding product with a web project experience. They do not publish an external Code execution API contract.
 
-## Current capability matrix
-| Capability | Current status | Required evidence |
-|---|---|---|
-| Code product exists | VERIFIED | Official Code/help page |
-| External task submission | UNVERIFIED | Official API/SDK/automation contract plus reproducible test |
-| Execution ID | UNVERIFIED | Documented submission response with stable identity |
-| Status retrieval | UNVERIFIED | Documented status interface plus proof |
-| Result/artifact retrieval | UNVERIFIED | Documented result interface plus proof |
-| Cancel | UNVERIFIED | Documented operation plus proof |
-| Retry | UNVERIFIED | Documented operation plus proof |
-| Connector route to Code | UNVERIFIED | Official Code-specific connector/action plus proof |
-| MCP route to Code | UNVERIFIED | Official documentation proving this direction |
+## Classification rules
 
-## Proof experiment
-### A — Official interface discovery
-Search only official Genspark product, help, and developer material. Record the exact interface, authentication, request shape, response shape, execution identity, and reproducible result.
+Every capability uses exactly one status:
 
-### B — Connector route
-Inspect the actual Genspark Skills → Connectors surface for the current account.
-Determine whether a Genspark Code-specific connector/action exists and whether it can start Code work, return an execution/project identifier, or expose status/result.
-If no such action exists, record that as an observed current product-surface limitation without generalizing beyond the tested account.
+- **VERIFIED** — an official/public interface exists and a reproducible proof succeeded.
+- **PARTIALLY VERIFIED** — relevant official evidence exists, but the complete end-to-end contract was not proven.
+- **UNVERIFIED** — no sufficient official interface and successful proof were found.
+- **NOT AVAILABLE** — official documentation or observed product behavior explicitly establishes that the capability is unavailable.
 
-### C — MCP route
-The production MCP server is:
-https://genspark-execution-bridge.pages.dev/mcp
+Absence from a page is not automatically classified as NOT AVAILABLE. It remains UNVERIFIED unless the official source explicitly states unavailability.
 
-Known safe proof direction:
+## Interfaces inspected
+
+### Genspark Code web product
+
+- **Product:** Genspark Code, formerly AI Developer.
+- **Interface:** `https://www.genspark.ai/code/` web UI.
+- **Documented input:** an interactive user request in one of the Web, Mobile Apps, Game, E-commerce, or Existing code categories.
+- **Documented output:** a Genspark Code project/application that can be reopened from the Projects tab.
+- **Authentication:** a Genspark account is required for account-owned projects; the inspected public pages do not document API authentication for Code.
+- **Execution identity:** no public Code execution ID contract is documented.
+- **Boundary:** this proves the product exists, not that an external application can invoke it.
+
+### Officially linked Genspark CLI
+
+The official Gen-1 Slides blog links the `@genspark/cli` package and documents `gsk task create slides` for AI Slides. Local CLI help was inspected without making a billed task.
+
+Observed generic task interface:
+
+```text
+gsk task create <task_type> --task_name <value> --query <value> --instructions <value>
+gsk task status <project_id-or-run_id>
+gsk task info <project_id>
+gsk task artifacts <project_id>
+gsk task artifact <artifact_id>
+gsk task stop <run_id-or-project_id>
+```
+
+The CLI help describes generic identities including `project_id` and async `run_id` values shaped like `sb_task_run::…`. It also documents status, artifact, and stop operations for supported specialized-agent tasks.
+
+However, the installed official CLI's `task create` task-type list did **not** include `Genspark Code`, `code`, or `code_sandbox`. It listed agents such as `super_agent`, `docs`, `slides`, `deep_research`, and `website`. Therefore the generic task interface is adjacent evidence only; it is not evidence of remotely invoking Genspark Code.
+
+CLI authentication is via `gsk login` or an API key (`--api-key` / `GSK_API_KEY`) according to `gsk help`. No secret was printed or recorded.
+
+### Connectors and MCP
+
+The official Connectors reference documents 37 standard connection options plus early-access entries. It defines:
+
+- **API Call:** Genspark calls the provider's API.
+- **MCP:** Genspark uses tools exposed by an MCP server.
+
+The documented catalog includes GitHub and multiple provider MCP integrations, plus custom/community MCP servers. It does not list a Genspark Code connector or an MCP tool that starts Genspark Code.
+
+The current account surface was probed through the installed official CLI:
+
+```text
+gsk capabilities --output json
+gsk mcp list --output json
+```
+
+Both calls were blocked before returning connector inventory because the tested account was on the free plan with 100 credits and the CLI required a paid plan or at least 500 credits. The exact observed error code was `free_plan_block`. No account connector list or MCP server list was obtained, so the current account's private connector inventory is not claimed as inspected successfully.
+
+The known bridge direction remains:
+
+```text
 Genspark → Execution Bridge MCP → get_project/get_task/get_status
+```
 
-Do not reinterpret this as:
+That direction does not establish:
+
+```text
 External application → MCP → Genspark Code
+```
 
-The reverse direction requires a separately documented Genspark interface.
+## Direct API/SDK search result
 
-### D — Public API/SDK verification
-Search official documentation for API references, SDKs, task submission, execution status, result/artifact retrieval, webhooks/events, authentication, permissions, and rate limits.
-If no official interface is found, preserve the capability as UNVERIFIED. Never invent endpoints, headers, tokens, JSON contracts, or private routes.
+Official product, help-center, and official-site searches were performed for:
 
-## Evidence rules
-A capability is proof only when the applicable elements are present:
-1. Official source.
-2. Exact interface or action.
-3. Documented authentication.
-4. Input contract.
-5. Output contract and execution identity.
-6. Reproducible test.
-7. Relevant failure semantics.
-8. Security boundary.
+- public API and developer API;
+- SDK and CLI;
+- task submission and execution creation;
+- execution status;
+- result or artifact retrieval;
+- cancel and retry;
+- webhooks or events;
+- authentication, permissions, and rate limits;
+- Connector or MCP actions targeting Genspark Code.
 
-A screenshot is evidence of observed UI state, not proof of a public API.
+A public interface contract specifically for remote Genspark Code execution was not found. No endpoint, HTTP method, JSON schema, OAuth scope, rate limit, webhook, or Code execution identifier was documented in the inspected sources.
+
+The generic Genspark CLI task surface does not change this result because its documented/observed task types did not include Genspark Code.
+
+## Capability matrix
+
+| Capability | Status | Discovery result |
+|---|---|---|
+| Code product exists | VERIFIED | Official Code and help pages describe the product and project UI. |
+| External task submission to Code | UNVERIFIED | No official/public Code submission action or request contract found. |
+| Code execution ID | UNVERIFIED | No documented Code submission response or execution identity found. |
+| Code status retrieval | UNVERIFIED | Generic CLI task status exists, but no Code task type or Code execution was established. |
+| Code result/artifact retrieval | UNVERIFIED | Generic CLI artifact operations exist, but no Code task route was established. |
+| Code cancel | UNVERIFIED | Generic CLI stop exists, but no Code execution route was established. |
+| Code retry | UNVERIFIED | No Code retry contract or proof found. |
+| Connector route to Code | UNVERIFIED | Official catalog has no Code-specific connector; current account inventory was blocked by plan/credit gating. |
+| MCP route to Code | UNVERIFIED | Official MCP direction is Genspark consuming server tools; no reverse Code invocation action was documented. |
+
+## Safe proof decision
+
+The required precondition for a safe Code execution proof was not met: no official external Genspark Code execution interface was identified. Therefore no task was submitted, no credits were intentionally consumed, and no disposable artifact was created.
 
 ## Architecture decision
-Keep:
+
+Keep the executor-neutral architecture unchanged:
+
+```text
 Control Plane → Executor Interface → Capability-Gated Genspark Executor
+```
 
-If external Code submission is verified, enable only the operations actually proven: submit, status, and result. Enable cancel/retry only after separate proof.
+Keep `submit`, `status`, `result`, `cancel`, `retry`, and `code_mode` disabled. The existing `GensparkExecutor` must continue to fail closed with `UNSUPPORTED_CAPABILITY`.
 
-If external Code submission is not verified, keep submit/status/result/cancel/retry/code_mode disabled and fail closed.
+No runtime implementation change is justified by this discovery.
 
-## Acceptance gates
-### G4 — Official Code interface
-Pass only if an official/public interface for external Code execution is identified.
+## Gate result
 
-### G5 — Submission proof
-Pass only if a real safe task is externally submitted through that documented interface and an execution identity is returned.
+- **G4 — Official Code interface:** failed/not demonstrated.
+- **G5 — Submission proof:** not run because G4 did not pass.
+- **G6 — Status/result proof:** not run because no Code execution identity exists.
+- **G7 — Security review:** incomplete because no Code API authentication/authorization contract exists.
+- **G8 — Adapter enablement:** blocked.
 
-### G6 — Status/result proof
-Pass only if status and result/artifact retrieval are independently reproducible.
+## Final discovery outcome
 
-### G7 — Security review
-Pass only if authentication, authorization, secret handling, idempotency, failure semantics, and audit requirements are documented.
+**REMOTE_CODE_NOT_VERIFIED**
 
-### G8 — Adapter enablement
-Only after G5–G7 pass may Genspark executor capabilities be changed from false to true.
-
-## Non-goals
-- No private Genspark endpoint reverse engineering.
-- No scraping or emulation of genspark.ai/code frontend calls.
-- No browser automation as the primary integration.
-- No extraction of session cookies or private tokens.
-- No authentication bypass.
-- No fabricated API contract.
-- No autonomous production deployment.
-- No treating MCP connectivity as proof of Code control.
-
-## Relationship to Phase 2
-Phase 2 established a production MCP server and safe read-only tool path.
-Phase 2 proves: Genspark → Execution Bridge MCP → tool discovery/call.
-Phase 3 asks a different question: External control plane → official Genspark Code execution interface.
-These are separate evidence chains.
-
-## Expected outcome
-At the end of Phase 3, produce a proof report with one clear result:
-- REMOTE_CODE_VERIFIED — only if the relevant gates pass; or
-- REMOTE_CODE_NOT_VERIFIED — if no official external execution interface can be reproduced.
-
-Either outcome is useful. The project must never treat an unverified interface as available merely because Genspark Code itself is available.
+This is not a claim that Genspark Code can never expose such an interface. It is the bounded result for the official sources, CLI surface, account constraints, and date recorded above.
