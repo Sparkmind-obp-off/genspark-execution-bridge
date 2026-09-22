@@ -42,7 +42,24 @@ export default {
       });
     }
 
-    if (url.pathname === "/mcp") return mcpHandler.fetch(request);
+    if (url.pathname === "/mcp") {
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "access-control-allow-origin": "*",
+            "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
+            "access-control-allow-headers": "Accept,Content-Type,MCP-Protocol-Version,Mcp-Method,Mcp-Name,Mcp-Session-Id"
+          }
+        });
+      }
+
+      const response = await mcpHandler.fetch(request);
+      const headers = new Headers(response.headers);
+      headers.set("access-control-allow-origin", "*");
+      headers.set("access-control-expose-headers", "Mcp-Session-Id,MCP-Protocol-Version");
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    }
 
     return Response.json({ error: "NOT_FOUND" }, { status: 404 });
   }
