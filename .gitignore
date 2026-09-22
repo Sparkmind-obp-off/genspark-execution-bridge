@@ -4,6 +4,7 @@
 node_modules/
 dist/
 build/
+.wrangler/
 coverage/
 .venv/
 __pycache__/
