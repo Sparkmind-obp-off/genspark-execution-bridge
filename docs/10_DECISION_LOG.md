@@ -25,3 +25,6 @@ Production side effects require explicit policy authorization.
 Official Genspark documentation establishes Connectors, MCP connections, custom/community MCP servers, MCP authentication options, and GitHub integration. It does not establish a public remote API for controlling genspark.ai/code.
 
 Source: https://www.genspark.ai/helpcenter/connectors-and-integrations
+
+## D009 — Phase 1 foundation and fail-closed boundary
+Phase 1 implements the executor-neutral control foundation, deterministic mock execution, three read-only MCP tools, independent verification, and structured redacted audit. The Genspark adapter exposes canonical operations but keeps `submit`, `status`, `result`, `cancel`, `retry`, and `code_mode` disabled until each capability has official/public evidence. Production execution and write-capable MCP tools are explicitly outside Phase 1 acceptance.

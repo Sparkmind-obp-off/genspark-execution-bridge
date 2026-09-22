@@ -26,21 +26,19 @@ The bridge must support:
 The control layer must remain usable when Genspark is unavailable.
 
 ## Canonical task
-A task contains:
-- task_id
-- intent
-- workspace
-- requirements
-- constraints
-- executor preference
-- verification requirements
-- environment
+The Phase 1 task schema contains:
+- `task_id`
+- `type`
+- `input`
+- `requested_capabilities`
+- `risk_level`
+- `created_at`
+- `metadata`
 
 ## Lifecycle
-CREATED -> VALIDATING -> PLANNED -> AUTHORIZED -> DISPATCHED -> RUNNING -> VERIFYING -> COMPLETED
+`created -> validated -> authorized -> queued -> running -> succeeded | failed | cancelled`
 
-Failure states:
-FAILED, BLOCKED, RETRYABLE.
+Every transition is explicit. Invalid transitions are rejected by the domain state machine.
 
 ## Principle
 Provider-specific behavior belongs inside adapters. Core domain logic must not depend on Genspark-specific fields.

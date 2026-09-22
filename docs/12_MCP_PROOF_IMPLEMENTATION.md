@@ -11,16 +11,18 @@ Endpoint:
 - MCP endpoint: `POST /mcp`
 - Audit evidence: `GET /audit`
 
-Tool:
-`get_project({ "project_id": "proof-project" })`
+Phase 1 tools:
+- `get_project({ "project_id": "proof-project" })`
+- `get_task({ "task_id": "proof-task" })`
+- `get_status({ "execution_id": "proof-execution" })`
 
-Expected payload:
+The original proof payload remains:
 
 ```json
 {"project_id":"proof-project","name":"Genspark Execution Bridge Proof","status":"ok","proof":true}
 ```
 
-The tool is intentionally read-only and has no credentials, deployment actions, shell execution, or external writes.
+All tools have explicit input/output schemas, deterministic validation, and audit events. They are intentionally read-only and have no credentials, deployment actions, shell execution, or external writes.
 
 ## P1 — Genspark connection
 

@@ -23,6 +23,7 @@ submit = false
 status = false
 result = false
 cancel = false
+retry = false
 code_mode = false
 
 Enable a capability only after a verification test passes.

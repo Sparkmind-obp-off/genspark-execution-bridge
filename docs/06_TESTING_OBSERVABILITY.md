@@ -46,14 +46,19 @@ request_id -> task_id -> execution_id -> tool calls -> verification.
 ## Completion rule
 Executor-reported completion is not enough. The bridge should independently verify observable outcomes where possible.
 
-## Audit events
-task.created
-task.authorized
-task.dispatched
-execution.started
-execution.completed
-execution.failed
-verification.started
-verification.passed
-verification.failed
-policy.blocked
+## Phase 1 audit events
+- `task.created`
+- `task.validated`
+- `task.authorization.checked`
+- `execution.submitted`
+- `execution.completed`
+- `execution.failed`
+- `verification.completed`
+- `verification.rejected`
+- `mcp.connection.checked`
+- `mcp.tool.discovered`
+- `mcp.tool.invoked`
+- `mcp.tool.result_returned`
+- `policy.denied`
+
+The Phase 1 sink is in-memory behind an `AuditSink` interface. Sensitive keys and credential-bearing values are redacted before storage.
