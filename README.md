@@ -152,6 +152,21 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - A completed live Genspark-to-MCP connection proof for a deployed URL.
 - Durable cross-request MCP audit evidence in production; the current in-memory sink is isolate-local.
 
+## Phase 4 — Execution Platform Discovery
+
+Phase 4 searches for a legitimate programmatic execution platform that can sit behind the executor-neutral control plane.
+
+**Requirement #1: Free-Tier Gate.** A candidate must have a legitimate free tier, free trial, or free credits sufficient for the initial disposable live proof before it is eligible for selection. Paid capacity can be evaluated later; the initial architectural proof must not require spending money.
+
+Gate outcomes are:
+
+- `FREE_TIER_PASS`
+- `FREE_TIER_PARTIAL`
+- `FREE_TIER_FAIL`
+- `FREE_TIER_UNVERIFIED`
+
+Initial candidates include Daytona, E2B, and Modal, subject to current official-account verification. This is a qualification matrix, not a ranking. See `docs/21_EXECUTION_PLATFORM_DISCOVERY.md`.
+
 ## Recommended next steps
 
 1. Add durable, correlation-aware audit storage before using `/audit` as cross-request production evidence.
