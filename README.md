@@ -2,6 +2,15 @@
 
 Proof-first, executor-neutral control foundation for integrating safe task orchestration with MCP/API executors without assuming an undocumented Genspark remote execution API.
 
+## Deployment status
+
+- **Platform:** Cloudflare Pages (BYOK)
+- **Production:** https://genspark-execution-bridge.pages.dev
+- **Health:** https://genspark-execution-bridge.pages.dev/health
+- **MCP:** https://genspark-execution-bridge.pages.dev/mcp
+- **Status:** Active; health verified on 2026-09-22
+- **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
+
 ## Phase 1 scope
 
 Phase 1 implements this runnable path:
