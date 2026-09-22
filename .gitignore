@@ -13,6 +13,11 @@ __pycache__/
 .idea/
 .DS_Store
 *.log
+.pm2/
+*.tar.gz
+*.zip
+*.backup
+*.bak
 *.pem
 *.key
 *.p12

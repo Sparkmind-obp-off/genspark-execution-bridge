@@ -28,6 +28,20 @@ function testAuditor() {
   return { sink, auditor: new Auditor(sink, () => new Date("2026-09-22T00:00:00.000Z")) };
 }
 
+async function readMcpResponse<T>(response: Response): Promise<T> {
+  const body = await response.text();
+  if ((response.headers.get("content-type") ?? "").includes("text/event-stream")) {
+    const data = body
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("\n");
+    assert.notEqual(data, "", "Expected an MCP data event in the SSE response");
+    return JSON.parse(data) as T;
+  }
+  return JSON.parse(body) as T;
+}
+
 test("task model accepts a canonical task and rejects malformed input", () => {
   assert.equal(validateTask(baseTask).valid, true);
   const invalid = validateTask({ ...baseTask, task_id: "", risk_level: "unknown" });
@@ -253,9 +267,9 @@ test("MCP Streamable HTTP endpoint completes legacy initialize and tools/list di
 
   assert.equal(initialize.ok, true);
   assert.equal(initialize.status, 200);
-  const initializeBody = await initialize.json() as {
+  const initializeBody = await readMcpResponse<{
     result?: { protocolVersion?: string; capabilities?: { tools?: unknown }; serverInfo?: { name?: string } };
-  };
+  }>(initialize);
   assert.equal(initializeBody.result?.protocolVersion, "2025-11-25");
   assert.equal(initializeBody.result?.serverInfo?.name, "genspark-execution-bridge");
   assert.ok(initializeBody.result?.capabilities?.tools !== undefined);
@@ -276,9 +290,9 @@ test("MCP Streamable HTTP endpoint completes legacy initialize and tools/list di
 
   assert.equal(toolsList.ok, true);
   assert.equal(toolsList.status, 200);
-  const toolsBody = await toolsList.json() as {
+  const toolsBody = await readMcpResponse<{
     result?: { tools?: Array<{ name?: string }> };
-  };
+  }>(toolsList);
   assert.deepEqual(
     toolsBody.result?.tools?.map((tool) => tool.name).sort(),
     ["get_project", "get_status", "get_task"]
