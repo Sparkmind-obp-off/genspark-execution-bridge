@@ -107,26 +107,39 @@ test("SDK post-delete lookup accepts only authoritative 404, never transport or 
   // Patch setTimeout to be a no-op so retry loops complete immediately in tests.
   const origTimeout = globalThis.setTimeout;
   (globalThis as Record<string, unknown>).setTimeout = (fn: () => void) => { fn(); return 0 as unknown as ReturnType<typeof setTimeout>; };
+  // verifyDeleted now uses direct fetch(); mock globalThis.fetch for this test.
+  const origFetch = globalThis.fetch;
+  let fetchStatus = 200;
+  let fetchShouldThrow: Error | null = null;
+  (globalThis as Record<string, unknown>).fetch = async (_url: string, _opts?: unknown) => {
+    if (fetchShouldThrow) throw fetchShouldThrow;
+    return { status: fetchStatus, ok: fetchStatus >= 200 && fetchStatus < 300 } as Response;
+  };
   Object.defineProperty(provider, "client", { value: {
     create: async () => ({ id: "sandbox-test", state: "started", process: {}, stop: async () => {}, delete: async () => {} }),
     get: async () => lookup()
   } });
   try {
     const sandbox = await provider.create({name:"proof",labels:{},networkBlockAll:true,ttlMinutes:10});
+    // verifyDeleted: sandbox exists (200) → false
+    fetchStatus = 200; fetchShouldThrow = null;
     assert.equal(await sandbox.verifyDeleted(), false);
     // verifyStopped: loop exhausts with non-"stopped" state → false
     assert.equal(await sandbox.verifyStopped(), false);
     // verifyStopped: first poll already returns "stopped" → true
     lookup = async () => ({state:"stopped"});
     assert.equal(await sandbox.verifyStopped(), true);
-    lookup = async () => { throw new DaytonaNotFoundError("not found", 404); };
+    // verifyDeleted: 404 → true (authoritative absence)
+    fetchStatus = 404; fetchShouldThrow = null;
     assert.equal(await sandbox.verifyDeleted(), true);
-    for (const error of [new Error("network unavailable"), new Error("authentication rejected"), new DaytonaNotFoundError("unconfirmed")]) {
-      lookup = async () => { throw error; };
-      await assert.rejects(sandbox.verifyDeleted(), error);
+    // verifyDeleted: transport/auth errors → false (not thrown; TTL handles cleanup)
+    for (const error of [new Error("network unavailable"), new Error("authentication rejected")]) {
+      fetchShouldThrow = error;
+      assert.equal(await sandbox.verifyDeleted(), false);
     }
   } finally {
     globalThis.setTimeout = origTimeout;
+    globalThis.fetch = origFetch;
   }
 });
 

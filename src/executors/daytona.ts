@@ -47,11 +47,13 @@ export interface DaytonaProvider {
 
 export class DaytonaSdkProvider implements DaytonaProvider {
   private readonly client: Daytona;
+  private readonly apiKey: string;
 
   constructor(apiKey = process.env.DAYTONA_API_KEY) {
     if (!apiKey) {
       throw new ExecutorError("MISSING_CREDENTIALS", "DAYTONA_API_KEY is required.");
     }
+    this.apiKey = apiKey;
     this.client = new Daytona({ apiKey, useDeprecatedPolling: true, requestTimeoutMs: 120_000 });
   }
 
@@ -88,7 +90,18 @@ export class DaytonaSdkProvider implements DaytonaProvider {
         };
       },
       logs: (sessionId, commandId) => sandbox.process.getSessionCommandLogs(sessionId, commandId),
-      stop: () => sandbox.stop(8),
+      stop: async () => {
+        // Daytona SDK sandbox.stop(N) uses setTimeout-based polling internally.
+        // On Cloudflare Workers (wall-clock ~30s budget), setTimeout polling is not viable.
+        // Instead, fire the HTTP stop request directly with a short AbortSignal timeout.
+        // The sandbox has autoStopInterval=5min + ttlMinutes=10 so TTL covers any missed stop.
+        await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}/stop`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(7000)
+        });
+        // Intentionally not waiting for stopped state — withDeadline in finally block handles TTL fallback.
+      },
       verifyStopped: async () => {
         // A short stop call may time out after acceptance; only a separate
         // provider lookup reporting stopped qualifies as proof of completion.
@@ -99,20 +112,27 @@ export class DaytonaSdkProvider implements DaytonaProvider {
         }
         return false;
       },
-      delete: () => sandbox.delete(15, false),
+      delete: async () => {
+        // Direct HTTP delete to avoid SDK polling on Cloudflare Workers budget.
+        await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(7000)
+        });
+      },
       verifyDeleted: async () => {
         // Deletion is asynchronous. Only an authoritative 404 proves absence;
         // a successful delete response or a transient/transport error never does.
-        for (let attempt = 0; attempt < 8; attempt++) {
-          try {
-            await this.client.get(sandbox.id);
-          } catch (error) {
-            if (error instanceof DaytonaNotFoundError && error.statusCode === 404) return true;
-            throw error;
-          }
-          if (attempt < 7) await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+          const res = await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}`, {
+            headers: { "Authorization": `Bearer ${this.apiKey}` },
+            signal: AbortSignal.timeout(7000)
+          });
+          if (res.status === 404) return true;
+          return false;
+        } catch {
+          return false;
         }
-        return false;
       }
     };
   }
