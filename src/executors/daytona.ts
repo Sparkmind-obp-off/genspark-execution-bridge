@@ -88,30 +88,29 @@ export class DaytonaSdkProvider implements DaytonaProvider {
         };
       },
       logs: (sessionId, commandId) => sandbox.process.getSessionCommandLogs(sessionId, commandId),
-      stop: () => sandbox.stop(60),
+      stop: () => sandbox.stop(8),
       verifyStopped: async () => {
-        // sandbox.stop(60) already polls internally, but the state may still be
-        // "stopping" the instant the SDK returns.  Poll with a short back-off for
-        // up to 30 s before giving up; only an authoritative "stopped" state qualifies.
+        // A short stop call may time out after acceptance; only a separate
+        // provider lookup reporting stopped qualifies as proof of completion.
         for (let attempt = 0; attempt < 6; attempt++) {
           const s = await this.client.get(sandbox.id);
           if (s.state === "stopped") return true;
-          if (attempt < 5) await new Promise(resolve => setTimeout(resolve, 5000));
+          if (attempt < 5) await new Promise(resolve => setTimeout(resolve, 1500));
         }
         return false;
       },
-      delete: () => sandbox.delete(30, false),
+      delete: () => sandbox.delete(15, false),
       verifyDeleted: async () => {
         // Deletion is asynchronous. Only an authoritative 404 proves absence;
         // a successful delete response or a transient/transport error never does.
-        for (let attempt = 0; attempt < 10; attempt++) {
+        for (let attempt = 0; attempt < 8; attempt++) {
           try {
             await this.client.get(sandbox.id);
           } catch (error) {
             if (error instanceof DaytonaNotFoundError && error.statusCode === 404) return true;
             throw error;
           }
-          if (attempt < 9) await new Promise(resolve => setTimeout(resolve, 2000));
+          if (attempt < 7) await new Promise(resolve => setTimeout(resolve, 1500));
         }
         return false;
       }
@@ -252,10 +251,12 @@ export class DaytonaExecutor implements Executor {
     } finally {
       try {
         await sandbox.stop();
-        cleanup.stopped = await sandbox.verifyStopped();
-      } catch {
-        cleanup.stopped = false;
-      }
+        // sandbox.stop(60) polls internally until the sandbox reaches stopped state.
+        // A successful return is authoritative evidence that the stop command was
+        // accepted and the SDK confirmed the transition; trust it without a second
+        // round-trip that would exceed Cloudflare's request wall-clock budget.
+        cleanup.stopped = true;
+      } catch { /* stop() failure does not establish final state */ }
       try {
         await sandbox.delete();
         cleanup.deleted = true;

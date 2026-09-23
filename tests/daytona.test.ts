@@ -200,6 +200,18 @@ test("Daytona surfaces timeout as execution failure", async () => {
   assert.equal((await executor.result(status.execution_id)).error?.code, "DAYTONA_EXECUTION_FAILED");
 });
 
+test("stop timeout is not success unless an independent stopped lookup succeeds", async () => {
+  for (const stoppedState of ["stopped", "starting"]) {
+    const fake = fakeProvider({stopError:new Error("stop wait timed out"),stoppedState});
+    const executor = new DaytonaExecutor(fake.provider);
+    const submitted = await executor.submit(task);
+    const result = await executor.result(submitted.execution_id);
+    assert.equal(result.state,stoppedState === "stopped" ? "succeeded" : "failed");
+    assert.equal((result.output as {cleanup:{stopped:boolean}}).cleanup.stopped,stoppedState === "stopped");
+    assert.equal(fake.calls.delete,1);
+  }
+});
+
 test("Daytona reports cleanup failure and keeps cancel fail-closed", async () => {
   const fake = fakeProvider({ deleteError: new Error("delete failed") });
   const executor = new DaytonaExecutor(fake.provider);
