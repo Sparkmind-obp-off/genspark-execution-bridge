@@ -32,6 +32,7 @@ export interface DaytonaSandboxHandle {
   logs(sessionId: string, commandId: string): Promise<DaytonaCommandLogs>;
   stop(): Promise<void>;
   delete(): Promise<void>;
+  verifyDeleted(): Promise<boolean>;
 }
 
 export interface DaytonaProvider {
@@ -87,7 +88,10 @@ export class DaytonaSdkProvider implements DaytonaProvider {
       },
       logs: (sessionId, commandId) => sandbox.process.getSessionCommandLogs(sessionId, commandId),
       stop: () => sandbox.stop(60),
-      delete: () => sandbox.delete(60, true)
+      delete: () => sandbox.delete(60, true),
+      verifyDeleted: async () => {
+        try { await this.client.get(sandbox.id); return false; } catch { return true; }
+      }
     };
   }
 }
@@ -166,7 +170,7 @@ export class DaytonaExecutor implements Executor {
 
     const sessionId = `bridge-${task.task_id}`;
     let commandId = "unavailable";
-    let cleanup = { stopped: false, deleted: false };
+    let cleanup = { stopped: false, deleted: false, postDeleteVerified: false };
     let result: ExecutionResult;
 
     try {
@@ -190,6 +194,7 @@ export class DaytonaExecutor implements Executor {
               provider: this.name,
               sandbox_id: sandbox.id,
               command_id: commandId,
+              session_id: sessionId,
               exit_code: response.exitCode,
               stdout: response.stdout ?? response.output,
               stderr: response.stderr ?? "",
@@ -229,12 +234,13 @@ export class DaytonaExecutor implements Executor {
       try {
         await sandbox.delete();
         cleanup.deleted = true;
+        cleanup.postDeleteVerified = await sandbox.verifyDeleted();
       } catch {
         cleanup.deleted = false;
       }
     }
 
-    if (!cleanup.stopped || !cleanup.deleted) {
+    if (!cleanup.stopped || !cleanup.deleted || !cleanup.postDeleteVerified) {
       result = {
         execution_id: result.execution_id,
         task_id: task.task_id,
