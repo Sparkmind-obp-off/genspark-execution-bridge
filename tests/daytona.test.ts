@@ -84,7 +84,7 @@ test("Daytona maps a successful verified execution with provider correlation", a
     stdout: "PHASE_4_EXECUTION_PROOF_OK\n",
     stderr: "",
     logs: { stdout: "PHASE_4_EXECUTION_PROOF_OK\n", stderr: "" },
-    cleanup: { stopped: true, deleted: true }
+    cleanup: { stopped: true, deleted: true, postDeleteVerified: true }
   });
   assert.deepEqual(fake.calls, { create: 1, stop: 1, delete: 1 });
 });
