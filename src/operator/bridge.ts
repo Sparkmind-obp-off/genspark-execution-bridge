@@ -1,3 +1,5 @@
+import { Daytona, DaytonaNotFoundError } from "@daytona/sdk";
+import { D1GatewayStore } from "../storage/gateway-store";
 import { createGateway, normalizeOperatorToken, PROOF_COMMAND, type GatewayBindings } from "../gateway/gateway";
 
 // This bridge accepts ONLY an active Cloudflare token for this project's own account.
@@ -42,6 +44,25 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
       const id = path.slice("/operator/durability/".length);
       const record = await env.DB.prepare("SELECT id,created_at FROM gateway_durability_proof WHERE id=? AND actor_id=?").bind(id,"operator").first<{id:string;created_at:string}>();
       return record ? reply(record) : reply({error:"NOT_FOUND"},404);
+    }
+    if (/^\/operator\/sandbox\/[0-9a-f-]{36}$/.test(path) && request.method === "GET") {
+      const taskId = path.slice("/operator/sandbox/".length);
+      const store = new D1GatewayStore(env.DB);
+      const task = await store.getTask(taskId);
+      if (task?.actor_id !== "operator") return reply({error:"NOT_FOUND"},404);
+      const execution = await store.getExecution(taskId);
+      const match = /^daytona:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(execution?.execution_id ?? "");
+      if (!match || !env.DAYTONA_API_KEY) return reply({error:"UNAVAILABLE"},503);
+      const client = new Daytona({apiKey:env.DAYTONA_API_KEY,requestTimeoutMs:15000});
+      try {
+        const sandbox = await client.get(match[1]);
+        return reply({task_id:taskId,sandbox_id:match[1],absent:false,state:sandbox.state,
+          labels_verified:sandbox.labels?.bridge === "genspark-execution-bridge" && sandbox.labels?.task_id === taskId});
+      } catch (error) {
+        if (error instanceof DaytonaNotFoundError && error.statusCode === 404)
+          return reply({task_id:taskId,sandbox_id:match[1],absent:true});
+        return reply({error:"PROVIDER_UNCERTAIN"},503);
+      }
     }
     if (/^\/operator\/executions\/[0-9a-f-]{36}$/.test(path) && request.method === "GET") {
       const id = path.slice("/operator/executions/".length);

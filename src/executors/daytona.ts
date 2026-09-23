@@ -256,9 +256,11 @@ export class DaytonaExecutor implements Executor {
         execution_id: result.execution_id,
         task_id: task.task_id,
         state: "failed",
+        // Preserve proof evidence for a bounded operator cleanup investigation, never credentials.
+        output: { ...(result.output as Record<string, unknown> | undefined), provider: this.name, sandbox_id: sandbox.id, session_id: sessionId, cleanup },
         error: { code: "DAYTONA_CLEANUP_FAILED", message: "Daytona sandbox cleanup could not be verified." }
       };
-    } else if (result.state === "succeeded" && result.output && typeof result.output === "object") {
+    } else if (result.output && typeof result.output === "object") {
       result.output = { ...(result.output as Record<string, unknown>), cleanup };
     }
 

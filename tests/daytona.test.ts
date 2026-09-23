@@ -163,7 +163,10 @@ test("Daytona rejects missing or uncertain post-delete evidence", async () => {
     const fake = fakeProvider(options);
     const executor = new DaytonaExecutor(fake.provider);
     const status = await executor.submit(task);
-    assert.equal((await executor.result(status.execution_id)).error?.code, "DAYTONA_CLEANUP_FAILED");
+    const result = await executor.result(status.execution_id);
+    assert.equal(result.error?.code, "DAYTONA_CLEANUP_FAILED");
+    assert.equal((result.output as {sandbox_id:string}).sandbox_id,"sandbox-proof-001");
+    assert.equal((result.output as {cleanup:{postDeleteVerified:boolean}}).cleanup.postDeleteVerified,options.stillExists ? false : options.lookupError ? false : true);
     assert.equal(fake.calls.lookup, 1);
   }
 });
