@@ -89,7 +89,17 @@ export class DaytonaSdkProvider implements DaytonaProvider {
       },
       logs: (sessionId, commandId) => sandbox.process.getSessionCommandLogs(sessionId, commandId),
       stop: () => sandbox.stop(60),
-      verifyStopped: async () => (await this.client.get(sandbox.id)).state === "stopped",
+      verifyStopped: async () => {
+        // sandbox.stop(60) already polls internally, but the state may still be
+        // "stopping" the instant the SDK returns.  Poll with a short back-off for
+        // up to 30 s before giving up; only an authoritative "stopped" state qualifies.
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const s = await this.client.get(sandbox.id);
+          if (s.state === "stopped") return true;
+          if (attempt < 5) await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        return false;
+      },
       delete: () => sandbox.delete(30, false),
       verifyDeleted: async () => {
         // Deletion is asynchronous. Only an authoritative 404 proves absence;

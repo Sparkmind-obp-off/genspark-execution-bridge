@@ -103,21 +103,30 @@ test("Daytona maps a successful verified execution with provider correlation", a
 
 test("SDK post-delete lookup accepts only authoritative 404, never transport or auth errors", async () => {
   const provider = new DaytonaSdkProvider("test-only-sdk-key");
-  let lookup: () => Promise<unknown> = async () => ({ id: "sandbox-test" });
+  let lookup: () => Promise<unknown> = async () => ({ id: "sandbox-test", state: "running" });
+  // Patch setTimeout to be a no-op so retry loops complete immediately in tests.
+  const origTimeout = globalThis.setTimeout;
+  (globalThis as Record<string, unknown>).setTimeout = (fn: () => void) => { fn(); return 0 as unknown as ReturnType<typeof setTimeout>; };
   Object.defineProperty(provider, "client", { value: {
     create: async () => ({ id: "sandbox-test", state: "started", process: {}, stop: async () => {}, delete: async () => {} }),
     get: async () => lookup()
   } });
-  const sandbox = await provider.create({name:"proof",labels:{},networkBlockAll:true,ttlMinutes:10});
-  assert.equal(await sandbox.verifyDeleted(), false);
-  assert.equal(await sandbox.verifyStopped(), false);
-  lookup = async () => ({state:"stopped"});
-  assert.equal(await sandbox.verifyStopped(), true);
-  lookup = async () => { throw new DaytonaNotFoundError("not found", 404); };
-  assert.equal(await sandbox.verifyDeleted(), true);
-  for (const error of [new Error("network unavailable"), new Error("authentication rejected"), new DaytonaNotFoundError("unconfirmed")]) {
-    lookup = async () => { throw error; };
-    await assert.rejects(sandbox.verifyDeleted(), error);
+  try {
+    const sandbox = await provider.create({name:"proof",labels:{},networkBlockAll:true,ttlMinutes:10});
+    assert.equal(await sandbox.verifyDeleted(), false);
+    // verifyStopped: loop exhausts with non-"stopped" state → false
+    assert.equal(await sandbox.verifyStopped(), false);
+    // verifyStopped: first poll already returns "stopped" → true
+    lookup = async () => ({state:"stopped"});
+    assert.equal(await sandbox.verifyStopped(), true);
+    lookup = async () => { throw new DaytonaNotFoundError("not found", 404); };
+    assert.equal(await sandbox.verifyDeleted(), true);
+    for (const error of [new Error("network unavailable"), new Error("authentication rejected"), new DaytonaNotFoundError("unconfirmed")]) {
+      lookup = async () => { throw error; };
+      await assert.rejects(sandbox.verifyDeleted(), error);
+    }
+  } finally {
+    globalThis.setTimeout = origTimeout;
   }
 });
 
