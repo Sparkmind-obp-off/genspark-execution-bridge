@@ -30,13 +30,21 @@ export interface GatewayBindings {
 export interface Principal { actor_id: "operator" }
 const safe = (body: object, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
+export function normalizeOperatorToken(token?: string): string | null {
+  // Runtime configuration accepts a raw token or one accidental Bearer prefix/outer whitespace.
+  // Never normalize incoming requests: they must still use a proper Authorization header.
+  const match = /^(?:Bearer\s+)?([^\s]{32,512})$/i.exec(token?.trim() ?? "");
+  return match?.[1] ?? null;
+}
+
 export async function authenticate(request: Request, token?: string): Promise<Principal | null> {
   const header = request.headers.get("authorization") ?? "";
-  if (!token || token.length < 32 || token.length > 512 || !/^Bearer [^\s]{32,512}$/.test(header)) return null;
+  const expected = normalizeOperatorToken(token);
+  if (!expected || !/^Bearer [^\s]{32,512}$/.test(header)) return null;
   const received = header.slice(7);
-  // Hash both values and compare all bytes; never reflect supplied credential.
+  // Hash normalized expected value and received value, then compare all bytes.
   const digest = async (value: string) => new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
-  const [a,b] = await Promise.all([digest(token),digest(received)]);
+  const [a,b] = await Promise.all([digest(expected),digest(received)]);
   let difference = 0;
   for (let i=0;i<a.length;i++) difference |= a[i] ^ b[i];
   return difference === 0 ? { actor_id: "operator" } : null;

@@ -30,6 +30,9 @@ test("operator bridge authenticates exact approved Cloudflare identity; D1 diagn
     assert.equal((await send(`/durability/${id}`)).status,401);
     assert.equal((await send("/proof",token,"POST",JSON.stringify({command:"echo something",idempotency_key:"x"}))).status,400);
     assert.equal((await send("/durability",token,"POST","{}")).status,400);
+    env.GATEWAY_OPERATOR_TOKEN = `  Bearer ${env.GATEWAY_OPERATOR_TOKEN}  `;
+    // Auth succeeds internally; the explicit execution flag is still disabled (503, not 401).
+    assert.equal((await send("/executions/00000000-0000-0000-0000-000000000000",token)).status,503);
     globalThis.fetch = async () => Response.json({success:true,result:{status:"active",id:"different-token-identity"}});
     assert.equal((await send(`/durability/${id}`,token)).status,401);
   } finally { globalThis.fetch=original; await mf.dispose(); }

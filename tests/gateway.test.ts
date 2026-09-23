@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createGateway, authenticate, PROOF_COMMAND, authorizeProof, type GatewayBindings } from "../src/gateway/gateway";
+import { createGateway, authenticate, normalizeOperatorToken, PROOF_COMMAND, authorizeProof, type GatewayBindings } from "../src/gateway/gateway";
 import { DaytonaExecutor, type DaytonaProvider } from "../src/executors/daytona";
 import type { AuditEvent } from "../src/audit/audit";
 import type { Task } from "../src/domain/task";
@@ -44,6 +44,19 @@ test("auth rejects missing, malformed, invalid and accepts operator without refl
   const denied=await handle(request(payload(),"another-token-with-at-least-thirty-two-chars"),env);
   assert.equal(denied.status,401);assert.equal(store.reservations.size,0);assert.equal(store.events.length,0);
   assert.equal((await denied.text()).includes(TOKEN),false);
+});
+
+test("runtime token normalization accepts raw and a single Bearer prefix without weakening request auth",async()=>{
+  for (const configured of [TOKEN,`  ${TOKEN}  `,`Bearer ${TOKEN}`,` \n bearer\t${TOKEN} \n`]) {
+    assert.equal(normalizeOperatorToken(configured),TOKEN);
+    assert.deepEqual(await authenticate(request(payload()),configured),{actor_id:"operator"});
+    const {handle,calls}=setup();
+    assert.equal((await handle(request(payload()),{...env,GATEWAY_OPERATOR_TOKEN:configured})).status,200);
+    assert.equal(calls.created,1);
+    assert.equal((await handle(request(payload(),"another-token-with-at-least-thirty-two-chars"),{...env,GATEWAY_OPERATOR_TOKEN:configured})).status,401);
+  }
+  for(const malformed of ["Bearer Bearer "+TOKEN,"short","  ",`${TOKEN} suffix`]) assert.equal(normalizeOperatorToken(malformed),null);
+  assert.equal(await authenticate(new Request("https://localhost/execute",{headers:{authorization:TOKEN}}),`Bearer ${TOKEN}`),null);
 });
 
 test("route disabled without explicit runtime gate; public routes reveal no task/audit",async()=>{

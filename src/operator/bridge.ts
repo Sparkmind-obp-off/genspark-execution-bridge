@@ -1,4 +1,4 @@
-import { createGateway, PROOF_COMMAND, type GatewayBindings } from "../gateway/gateway";
+import { createGateway, normalizeOperatorToken, PROOF_COMMAND, type GatewayBindings } from "../gateway/gateway";
 
 // This bridge accepts ONLY an active Cloudflare token for this project's own account.
 // It never accepts an operator gateway secret or arbitrary commands, URLs, or provider options.
@@ -27,7 +27,8 @@ async function authorize(request: Request): Promise<boolean> {
 export async function operatorBridge(request: Request, env: GatewayBindings): Promise<Response> {
   const path = new URL(request.url).pathname;
   if (!await authorize(request)) return reply({ error: "UNAUTHORIZED" }, 401);
-  if (!env.DB || !env.GATEWAY_OPERATOR_TOKEN) return reply({ error: "UNAVAILABLE" }, 503);
+  const operatorToken = normalizeOperatorToken(env.GATEWAY_OPERATOR_TOKEN);
+  if (!env.DB || !operatorToken) return reply({ error: "UNAVAILABLE" }, 503);
 
   try {
     if (path === "/operator/durability" && request.method === "POST") {
@@ -44,7 +45,7 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
     }
     if (/^\/operator\/executions\/[0-9a-f-]{36}$/.test(path) && request.method === "GET") {
       const id = path.slice("/operator/executions/".length);
-      return gateway(new Request(new URL(`/executions/${id}`,request.url),{headers:{authorization:`Bearer ${env.GATEWAY_OPERATOR_TOKEN}`}}),env);
+      return gateway(new Request(new URL(`/executions/${id}`,request.url),{headers:{authorization:`Bearer ${operatorToken}`}}),env);
     }
     if (["/operator/proof","/operator/replay","/operator/conflict"].includes(path) && request.method === "POST") {
       if (Number(request.headers.get("content-length") ?? 0) > 256) return reply({error:"INVALID_REQUEST"},400);
@@ -56,7 +57,7 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
       const key = (value as {idempotency_key?:unknown}).idempotency_key;
       if (typeof key !== "string" || !/^[A-Za-z0-9_-]{32,128}$/.test(key)) return reply({error:"INVALID_REQUEST"},400);
       const body = {task:{type:"execution",input:{command:PROOF_COMMAND},risk_level:path === "/operator/conflict" ? "medium" : "low",requested_capabilities:["code_mode"]},idempotency_key:key};
-      return gateway(new Request(new URL("/execute",request.url),{method:"POST",headers:{authorization:`Bearer ${env.GATEWAY_OPERATOR_TOKEN}`,"content-type":"application/json"},body:JSON.stringify(body)}),env);
+      return gateway(new Request(new URL("/execute",request.url),{method:"POST",headers:{authorization:`Bearer ${operatorToken}`,"content-type":"application/json"},body:JSON.stringify(body)}),env);
     }
     return reply({error:"NOT_FOUND"},404);
   } catch { return reply({error:"UNAVAILABLE"},503); }
