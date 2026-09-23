@@ -69,8 +69,8 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
     const requestId = crypto.randomUUID();
     const store = dependencies?.store ?? new D1GatewayStore(env.DB);
     const auditor = new Auditor(store);
-    const event = async (name: Parameters<Auditor["emit"]>[0]["event"], taskId?: string, outcome?: string, executionId?: string) => {
-      await auditor.emit({event:name,request_id:requestId,actor:principal.actor_id,task_id:taskId,execution_id:executionId,outcome});
+    const event = async (name: Parameters<Auditor["emit"]>[0]["event"], taskId?: string, outcome?: string, executionId?: string, details?: unknown) => {
+      await auditor.emit({event:name,request_id:requestId,actor:principal.actor_id,task_id:taskId,execution_id:executionId,outcome,details});
     };
     try {
       await event("auth.checked",undefined,"allowed");
@@ -96,10 +96,6 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
       const taskId = crypto.randomUUID();
       const task: Task = { ...input.task,task_id:taskId,created_at:new Date().toISOString(),metadata:{} };
       if (!validateTask(task).valid) return safe({error:"INVALID_REQUEST"},400);
-      const decision = authorizeProof(principal,"execute","daytona.proof","isolated",task,executor);
-      if (!decision.allowed) return safe({error:"POLICY_DENIED",reason_code:decision.reason_code},403);
-      const check = await executor.validate(task);
-      if (!check.valid) return safe({error:"POLICY_DENIED"},403);
       const requestFingerprint = await fingerprint(input.task);
       const reserved = await store.reserve({key:input.idempotency_key,actor_id:principal.actor_id,operation:"execute",fingerprint:requestFingerprint,task_id:taskId,created_at:task.created_at});
       if (reserved === "conflict") return safe({error:"IDEMPOTENCY_CONFLICT"},409);
@@ -112,6 +108,11 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         const execution = prior ? await store.getExecution(original) : null;
         return safe({task_id:original,state:prior?.state ?? "unknown",execution_id:execution?.execution_id ?? null,verification:execution?.verification ?? "pending",result_code:execution?.result_code ?? null,replayed:true},prior ? 200 : 202);
       }
+      if (reserved === "created") {
+      const decision = authorizeProof(principal,"execute","daytona.proof","isolated",task,executor);
+      if (!decision.allowed) return safe({error:"POLICY_DENIED",reason_code:decision.reason_code},403);
+      const check = await executor.validate(task);
+      if (!check.valid) return safe({error:"POLICY_DENIED"},403);
       await event("idempotency.reserved",taskId);
       const machine = new TaskStateMachine();
       await store.createTask({task_id:taskId,actor_id:principal.actor_id,request_id:requestId,state:machine.state,policy_version:decision.policy_version,policy_reason:decision.reason_code,command_digest:requestFingerprint,created_at:task.created_at});
@@ -137,11 +138,12 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
       // After this point any uncertainty MUST remain unknown; never resubmit on replay.
       try {
         const submitted = await executor.submit(task);
-        await event("provider.responded",taskId,"returned",submitted.execution_id);
+        const submittedOutput = submitted as ExecutionStatus & { output?: Record<string, unknown> };
+        await event("provider.responded",taskId,"returned",submitted.execution_id, { session_id: submittedOutput.output?.session_id });
         const status = await executor.status(submitted.execution_id);
         const result = await executor.result(submitted.execution_id);
         const verified = verifyExecution(taskId,submitted.execution_id,status,result,z.object({
-          provider:z.literal("daytona"),sandbox_id:z.string().min(1),command_id:z.string().min(1),
+          provider:z.literal("daytona"),sandbox_id:z.string().min(1),session_id:z.string().min(1),command_id:z.string().min(1),
           exit_code:z.literal(0),stdout:z.literal(PROOF_MARKER+"\n"),
           logs:z.object({stdout:z.literal(PROOF_MARKER+"\n"),stderr:z.literal("")}),
           cleanup:z.object({stopped:z.literal(true),deleted:z.literal(true)})
@@ -155,7 +157,7 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         const state: TaskState = success ? "succeeded" : ambiguous ? "unknown" : "failed";
         const code = success ? "PROOF_VERIFIED" : ambiguous ? "PROVIDER_UNCERTAIN" : "VERIFICATION_REJECTED";
         await store.changeExecution(taskId,"running",{...pending,execution_id:submitted.execution_id,provider_id:submitted.execution_id,state,verification:verified.accepted ? "accepted" : "rejected",result_code:code});
-        await event(success ? "verification.completed" : "verification.rejected",taskId,code,submitted.execution_id);
+        await event(success ? "verification.completed" : "verification.rejected",taskId,code,submitted.execution_id, { session_id: output?.session_id });
         await transition(state);
         await event(success ? "execution.completed" : "execution.failed",taskId,code,submitted.execution_id);
         await event("audit.persisted",taskId);
