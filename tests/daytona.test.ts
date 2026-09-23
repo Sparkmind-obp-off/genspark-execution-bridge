@@ -104,7 +104,9 @@ test("Daytona maps a successful verified execution with provider correlation", a
 test("SDK post-delete lookup accepts only authoritative 404, never transport or auth errors", async () => {
   const provider = new DaytonaSdkProvider("test-only-sdk-key");
   let lookup: () => Promise<unknown> = async () => ({ id: "sandbox-test", state: "running" });
-  // verifyDeleted now uses direct fetch(); mock globalThis.fetch for this test.
+  const origTimeout = globalThis.setTimeout;
+  (globalThis as Record<string, unknown>).setTimeout = (fn: () => void) => { fn(); return 0 as unknown as ReturnType<typeof setTimeout>; };
+  // verifyDeleted uses independent direct fetch(); mock globalThis.fetch for this test.
   const origFetch = globalThis.fetch;
   let fetchStatus = 200;
   let fetchShouldThrow: Error | null = null;
@@ -130,8 +132,10 @@ test("SDK post-delete lookup accepts only authoritative 404, never transport or 
     // verifyStopped: independent non-stopped lookup is not proof
     assert.equal(await sandbox.verifyStopped(), false);
     // verifyStopped: first poll already returns "stopped" → true
-    lookup = async () => ({state:"stopped"});
+    let stopLookups = 0;
+    lookup = async () => ({state:++stopLookups >= 2 ? "stopped" : "stopping"});
     assert.equal(await sandbox.verifyStopped(), true);
+    assert.equal(stopLookups,2);
     // verifyDeleted: 404 → true (authoritative absence)
     fetchStatus = 404; fetchShouldThrow = null;
     assert.equal(await sandbox.verifyDeleted(), true);
@@ -141,6 +145,7 @@ test("SDK post-delete lookup accepts only authoritative 404, never transport or 
       assert.equal(await sandbox.verifyDeleted(), false);
     }
   } finally {
+    globalThis.setTimeout = origTimeout;
     globalThis.fetch = origFetch;
   }
 });

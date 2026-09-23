@@ -106,8 +106,12 @@ export class DaytonaSdkProvider implements DaytonaProvider {
       verifyStopped: async () => {
         // A short stop call may time out after acceptance; only a separate
         // provider lookup reporting stopped qualifies as proof of completion.
-        const s = await this.client.get(sandbox.id);
-        return s.state === "stopped";
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const state = await this.client.get(sandbox.id);
+          if (state.state === "stopped") return true;
+          if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 750));
+        }
+        return false;
       },
       delete: async () => {
         // Direct HTTP delete to avoid SDK polling on Cloudflare Workers budget.
@@ -121,16 +125,18 @@ export class DaytonaSdkProvider implements DaytonaProvider {
       verifyDeleted: async () => {
         // Deletion is asynchronous. Only an authoritative 404 proves absence;
         // a successful delete response or a transient/transport error never does.
-        try {
-          const res = await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}`, {
-            headers: { "Authorization": `Bearer ${this.apiKey}` },
-            signal: AbortSignal.timeout(7000)
-          });
-          if (res.status === 404) return true;
-          return false;
-        } catch {
-          return false;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            const res = await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}`, {
+              headers: { "Authorization": `Bearer ${this.apiKey}` },
+              signal: AbortSignal.timeout(7000)
+            });
+            if (res.status === 404) return true;
+            if (!res.ok) return false;
+          } catch { return false; }
+          if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 750));
         }
+        return false;
       }
     };
   }

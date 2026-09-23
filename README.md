@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Proof-only operator console and Daytona gateway. Production completion requires independent live cleanup and E2E evidence; see the canonical contracts in `docs/43_CANONICAL_DOCUMENT_INDEX.md`. Genspark remote execution remains unverified and disabled. Do not infer Daytona success from the health endpoint.
+- **Status:** Proof-only operator console and Daytona gateway. On 2026-09-23, an authenticated production run created one Daytona sandbox, executed the exact marker, and initially returned `unknown`; a separate operator recovery request verified stopped, deleted, and post-delete absence, after which D1 showed `succeeded / PROOF_VERIFIED`. A later read, exact replay, and 409 conflict were observed. Initial same-request cleanup remains subject to provider eventual consistency. Genspark remote execution remains unverified/disabled. Health status alone is not execution proof. See `docs/43_CANONICAL_DOCUMENT_INDEX.md`.
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -183,7 +183,7 @@ The adapter accepts canonical low-risk `execution` tasks with `input.command` an
 
 ## Operator guide
 
-Open `/` over HTTPS and enter the approved Cloudflare operator API token in the sign-in form. The browser does not persist it; refresh/logout clears it. View production executions and durable audit, or run the locked proof with a generated idempotency key. Replay does not submit a second sandbox; conflict returns HTTP 409. If an execution becomes `unknown`, do not rerun it; inspect the provider sandbox with the narrowly scoped recovery API. Only an independent provider lookup confirming absence closes cleanup. Credentials must never be pasted into chat, URLs, or source code.
+Open `/` over HTTPS and enter the approved Cloudflare operator API token in the sign-in form. The browser does not persist it; refresh/logout clears it. View production executions and durable audit, or run the locked proof with a generated idempotency key. Replay does not submit a second sandbox; conflict returns HTTP 409. If an execution becomes `unknown`, do not rerun it; use the detail view’s bounded cleanup verification action, which inspects the correlated sandbox without submitting another command. Only an independent provider lookup confirming absence closes cleanup. Credentials must never be pasted into chat, URLs, or source code.
 
 ## Canonical contracts
 
