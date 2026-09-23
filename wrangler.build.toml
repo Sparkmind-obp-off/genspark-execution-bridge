@@ -1,0 +1,5 @@
+# Worker dry-run bundle only. Production deploy uses the Pages config in wrangler.toml.
+name = "genspark-execution-bridge-build"
+main = "src/index.ts"
+compatibility_date = "2026-09-22"
+compatibility_flags = ["nodejs_compat"]

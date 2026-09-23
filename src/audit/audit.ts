@@ -11,7 +11,15 @@ export const auditEventNames = [
   "mcp.tool.discovered",
   "mcp.tool.invoked",
   "mcp.tool.result_returned",
-  "policy.denied"
+  "policy.denied",
+  "auth.checked",
+  "task.persisted",
+  "idempotency.reserved",
+  "idempotency.replayed",
+  "execution.state_changed",
+  "provider.requested",
+  "provider.responded",
+  "audit.persisted"
 ] as const;
 
 export type AuditEventName = (typeof auditEventNames)[number];
@@ -19,6 +27,7 @@ export type AuditEventName = (typeof auditEventNames)[number];
 export interface AuditEvent {
   event: AuditEventName;
   timestamp: string;
+  request_id?: string;
   task_id?: string;
   execution_id?: string;
   actor?: string;

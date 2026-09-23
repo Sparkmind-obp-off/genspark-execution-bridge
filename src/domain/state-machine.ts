@@ -6,7 +6,8 @@ export const taskStates = [
   "running",
   "succeeded",
   "failed",
-  "cancelled"
+  "cancelled",
+  "unknown"
 ] as const;
 
 export type TaskState = (typeof taskStates)[number];
@@ -17,10 +18,11 @@ const transitions: Readonly<Record<TaskState, readonly TaskState[]>> = {
   validated: ["authorized", "cancelled"],
   authorized: ["queued", "cancelled"],
   queued: ["running", "cancelled"],
-  running: ["succeeded", "failed", "cancelled"],
+  running: ["succeeded", "failed", "cancelled", "unknown"],
   succeeded: [],
   failed: [],
-  cancelled: []
+  cancelled: [],
+  unknown: []
 };
 
 export class InvalidTaskTransitionError extends Error {

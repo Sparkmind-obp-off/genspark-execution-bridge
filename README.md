@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Active; health, MCP initialization, tool discovery, and `get_project` verified in production on 2026-09-22. Phase 4 produced `DAYTONA_EXECUTION_PROOF_PASS` and added a minimal provider-neutral Daytona adapter. The adapter is not exposed as a public execution route. Phase 3 Genspark Code and Phase 3B generic CLI execution remain unverified/disabled.
+- **Status:** Phase 4 Daytona proof passed. Phase 5 proof-only gateway is implemented and default-DISABLED pending operator credential rotation and live production gateway proof; production activation is not claimed. Existing public health/read-only MCP proof remains available. Genspark remote execution remains disabled.
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -73,9 +73,11 @@ Unknown resources return `UNKNOWN_RESOURCE`; malformed inputs return `INVALID_IN
 | `GET /health` | Service and Phase 1 capability status |
 | `POST /mcp` | MCP Streamable HTTP endpoint |
 | `GET /mcp` | MCP transport request handling where supported by the SDK |
-| `GET /audit` | Runtime-local, already-redacted audit evidence |
+| `POST /execute` | Single-operator authenticated proof-only execution, disabled by default; strict request + idempotency key |
+| `GET /executions/:task_id` | Authenticated, actor-scoped durable state and redacted audit; disabled by default |
+| `GET /audit` | Removed: returns 404; no public audit of task data |
 
-The in-memory audit sink is intentionally replaceable through the `AuditSink` interface and is not durable across Worker restarts or isolates. Production MCP initialization, discovery, and `get_project` calls were verified, but a later `/audit` request can reach a different isolate and return no prior events. Durable cross-request audit evidence is therefore not yet claimed.
+Legacy public MCP proof tools remain in-memory and read-only. The Phase 5 gateway uses D1 for task, execution, idempotency and audit records, independent of Worker isolate; `GET /executions/:task_id` requires operator authentication and discloses only the operator's own safe state. Production cross-request gateway proof is not yet claimed.
 
 ## Install, test, and build
 
@@ -104,7 +106,8 @@ Wrangler listens on port `3000`. Check:
 
 ```bash
 curl http://localhost:3000/health
-curl http://localhost:3000/audit
+curl -i http://localhost:3000/execute  # 405, never executes
+curl -i http://localhost:3000/audit    # 404
 ```
 
 Use an MCP client against `http://localhost:3000/mcp`. See `docs/11_MCP_PROOF_RUNBOOK.md` for the external Genspark connection proof. A visible model response alone is not server-side proof; inspect redacted audit evidence as well.
@@ -127,7 +130,8 @@ For a redeploy, skip project creation. Verify after deployment:
 
 ```bash
 curl https://<project-name>.pages.dev/health
-curl https://<project-name>.pages.dev/audit
+curl -i https://<project-name>.pages.dev/execute # 405
+curl -i https://<project-name>.pages.dev/audit   # 404
 ```
 
 Deployment publishes the bridge service and safe MCP tools; it does **not** enable production task execution or any unverified Genspark capability.
@@ -136,9 +140,9 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 
 - Canonical tasks, executor results, policy decisions, and verification outcomes are strongly typed TypeScript objects.
 - `MockExecutor` state and audit events are runtime-local in-memory data for deterministic Phase 1 behavior.
-- No persistent database, KV namespace, or R2 bucket is used. Daytona credentials are runtime secrets only and are never accepted in canonical task input.
+- The Phase 5 BYOK Pages gateway uses Cloudflare D1 (`DB`, `genspark-execution-bridge-gateway`) with versioned SQL migrations for durable task/execution/idempotency/audit records. Raw commands, provider output and credentials are not persisted.
 - `DaytonaExecutor` stores terminal status/results in-memory and maps provider sandbox/command IDs into canonical correlation data.
-- A durable audit backend can later implement `AuditSink` without changing domain logic.
+- `D1GatewayStore` implements `TaskStore`, `ExecutionStore`, `IdempotencyStore`, and `AuditSink` without changing the existing executor contract. The legacy proof MCP uses its in-memory sink only for harmless fixed resources.
 
 ## Security boundaries
 
@@ -152,9 +156,9 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 
 - Official external-to-Genspark Code submission, execution identity, status, result, cancel, retry, or Code-mode integration. Phase 3 recorded `REMOTE_CODE_NOT_VERIFIED`.
 - A `GensparkCliExecutor`. Phase 3B recorded `CLI_EXECUTOR_NOT_VERIFIED` after the authorized account was blocked by the CLI's paid-plan/500-credit gate before task creation.
-- Production mutations, deployments initiated as tasks, or write-capable MCP tools.
-- Durable task/execution/audit persistence.
-- Authentication, multi-tenancy, operator UI, and approval workflows.
+- General production mutations, deployments initiated as tasks, arbitrary shell execution, or write-capable MCP tools. The only implemented gateway mutation is an exact harmless proof command, default DISABLED.
+- Operational proof of rotated Daytona credentials and production cross-request D1/idempotency/audit/execution; until then gateway execution remains DISABLED.
+- Multi-tenancy, operator UI, and approval workflows. Initial auth is a single-operator bearer secret only.
 - A completed live Genspark-to-MCP connection proof for a deployed URL.
 - Durable cross-request MCP audit evidence in production; the current in-memory sink is isolate-local.
 

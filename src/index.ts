@@ -1,10 +1,12 @@
 import { Auditor, InMemoryAuditSink } from "./audit/audit";
 import { createSafeMcpHandler } from "./mcp/server";
 import { proofProject } from "./mcp/safe-tools";
+import { createGateway, type GatewayBindings } from "./gateway/gateway";
 
 const auditSink = new InMemoryAuditSink();
 const auditor = new Auditor(auditSink);
 const mcpHandler = createSafeMcpHandler(auditor);
+const gateway = createGateway();
 
 export function getProofProject(projectId: string) {
   return projectId === proofProject.project_id ? structuredClone(proofProject) : null;
@@ -24,25 +26,23 @@ export * from "./policy/policy";
 export * from "./verification/verification";
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: GatewayBindings = {}): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/health" && request.method === "GET") {
       return Response.json({
         service: "genspark-execution-bridge",
         status: "ok",
-        phase: 4,
-        production_execution: false,
+        phase: 5,
+        production_execution: env.GATEWAY_EXECUTION_ENABLED === "true" && !!env.DB && !!env.DAYTONA_API_KEY && !!env.GATEWAY_OPERATOR_TOKEN,
         daytona_execution_proof: "pass",
         daytona_public_execution: false,
         genspark_remote_execution: "unverified"
       });
     }
 
-    if (url.pathname === "/audit" && request.method === "GET") {
-      return Response.json({ events: auditSink.events() }, {
-        headers: { "cache-control": "no-store" }
-      });
+    if (url.pathname === "/execute" || url.pathname.startsWith("/executions/")) {
+      return gateway(request, env);
     }
 
     if (url.pathname === "/mcp") {

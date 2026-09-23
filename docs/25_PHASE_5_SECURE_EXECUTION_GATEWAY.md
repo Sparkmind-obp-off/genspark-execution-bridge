@@ -2,7 +2,7 @@
 
 ## Status
 
-**Phase 5 planning document — READY FOR IMPLEMENTATION**
+**Phase 5 PARTIAL — deployed BYOK with production execution DISABLED pending Gate 0 operator proof.**
 
 Phase 4 proved Daytona as a legitimate execution platform behind the provider-neutral executor boundary:
 
@@ -572,3 +572,11 @@ Potential scope:
 - user-facing operator UI.
 
 The order remains proof-first: secure the gateway before increasing capability.
+
+## Implemented narrow gateway boundary (2026-09-23)
+
+The Phase 5 implementation chooses an **exact proof-command envelope** rather than arbitrary user-submitted shell: `printf '%s\\n' 'PHASE_5_EXECUTION_PROOF_OK'`. Only `type=execution`, `risk_level=low`, `requested_capabilities=["code_mode"]` and this exact command are allowed. The server generates canonical identity and timestamps; all other task fields and embedded credentials are rejected. This is narrower than the illustrative `/execute` request above and deliberately is not a general execution API.
+
+Cloudflare Pages BYOK uses the `DB` D1 binding and versioned migration `migrations/0001_gateway.sql`. An atomic `INSERT OR IGNORE` on the globally unique idempotency key reserves before provider contact; a stranded reservation is UNKNOWN and never retried. Records contain a command digest, policy version/reason and safe result code, not raw command/stdout or credentials. Durable audit is scoped to authenticated actor/task and `/audit` is removed. Gateway lifecycle adds a terminal `unknown` state for provider ambiguity; canonical Executor signatures do not change.
+
+Runtime remains disabled by default. Enabling requires separately verified revocation/rotation of the Phase 4 Daytona credential, deployment secret bindings `DAYTONA_API_KEY` and `GATEWAY_OPERATOR_TOKEN`, D1 binding and an explicit `GATEWAY_EXECUTION_ENABLED=true` runtime setting. That flag is not a claim that rotation happened. Never enable it on the basis of unit tests alone. The operator must verify provider authentication and the complete production trace before reporting Gate 0 PASS. BYOK Pages does not use the separate Genspark Hosted access-descriptor mechanism; the gateway's single-operator bearer authentication and actor-scoped record access are application concerns on this deployment path.

@@ -1,8 +1,12 @@
 name = "genspark-execution-bridge-proof"
-main = "src/index.ts"
 compatibility_date = "2026-09-22"
-workers_dev = true
+pages_build_output_dir = "./dist"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-PROOF_VERSION = "p0-p4-v1"
+PROOF_VERSION = "p0-p5-v1"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "genspark-execution-bridge-gateway"
+database_id = "0ff8f320-d7e2-4705-8161-c9e48d3cd46d"

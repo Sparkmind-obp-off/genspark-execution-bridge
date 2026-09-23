@@ -554,3 +554,7 @@ Prefer a narrow, verifiable gateway over a feature-rich execution API.
 The architecture is already proven.
 
 **Now harden it.**
+
+## Execution note (2026-09-23)
+
+This original contract remains the acceptance specification. The implemented initial route is intentionally restricted to the exact harmless proof command (see `docs/25_PHASE_5_SECURE_EXECUTION_GATEWAY.md`). A deployed DISABLED gateway is not a Phase 5 PASS: operational credential rotation, runtime secret injection and live end-to-end production proof are still required. Actual evidence and any blockers belong in `docs/27_PHASE_5_IMPLEMENTATION_REPORT.md`.
