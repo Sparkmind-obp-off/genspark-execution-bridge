@@ -2,6 +2,7 @@ import { Auditor, InMemoryAuditSink } from "./audit/audit";
 import { createSafeMcpHandler } from "./mcp/server";
 import { proofProject } from "./mcp/safe-tools";
 import { createGateway, type GatewayBindings } from "./gateway/gateway";
+import { operatorBridge } from "./operator/bridge";
 
 const auditSink = new InMemoryAuditSink();
 const auditor = new Auditor(auditSink);
@@ -40,6 +41,8 @@ export default {
         genspark_remote_execution: "unverified"
       });
     }
+
+    if (url.pathname.startsWith("/operator/")) return operatorBridge(request, env);
 
     if (url.pathname === "/execute" || url.pathname.startsWith("/executions/")) {
       return gateway(request, env);

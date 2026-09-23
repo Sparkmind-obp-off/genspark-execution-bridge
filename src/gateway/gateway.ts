@@ -80,7 +80,7 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         if (!task || task.actor_id !== principal.actor_id) return safe({error:"NOT_FOUND"},404);
         const execution = await store.getExecution(id);
         const events = await store.auditForTask(principal.actor_id,id);
-        return safe({task_id:id,state:task.state,execution_id:execution?.execution_id ?? null,verification:execution?.verification ?? "pending",result_code:execution?.result_code ?? null,audit:events});
+        return safe({request_id:task.request_id,task_id:id,state:task.state,execution_id:execution?.execution_id ?? null,verification:execution?.verification ?? "pending",result_code:execution?.result_code ?? null,audit:events});
       }
       if (Number(request.headers.get("content-length") ?? 0) > 2048) return safe({error:"INVALID_REQUEST"},400);
       let body: unknown;
@@ -97,27 +97,28 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
       const task: Task = { ...input.task,task_id:taskId,created_at:new Date().toISOString(),metadata:{} };
       if (!validateTask(task).valid) return safe({error:"INVALID_REQUEST"},400);
       const requestFingerprint = await fingerprint(input.task);
-      const reserved = await store.reserve({key:input.idempotency_key,actor_id:principal.actor_id,operation:"execute",fingerprint:requestFingerprint,task_id:taskId,created_at:task.created_at});
+      const keyFingerprint = await fingerprint(input.idempotency_key);
+      const reserved = await store.reserve({key:keyFingerprint,actor_id:principal.actor_id,operation:"execute",fingerprint:requestFingerprint,task_id:taskId,created_at:task.created_at});
       if (reserved === "conflict") {
-        const original = await store.getReservedTaskId(input.idempotency_key);
+        const original = await store.getReservedTaskId(keyFingerprint);
         const prior = original ? await store.getTask(original) : null;
-        if (prior?.actor_id === principal.actor_id && original) await event("idempotency.conflicted",original,"rejected");
+        if (prior?.actor_id === principal.actor_id && original) await event("idempotency.conflicted",original,"rejected",undefined,{key_fingerprint:keyFingerprint});
         return safe({error:"IDEMPOTENCY_CONFLICT"},409);
       }
       if (reserved === "replayed") {
         // Look up the original ID via key, not the newly generated ID.
-        const original = await store.getReservedTaskId(input.idempotency_key);
+        const original = await store.getReservedTaskId(keyFingerprint);
         if (!original) throw new StorageFailure();
         const prior = await store.getTask(original);
         const execution = prior ? await store.getExecution(original) : null;
-        await event("idempotency.replayed",original,"replayed",execution?.execution_id ?? undefined);
+        await event("idempotency.replayed",original,"replayed",execution?.execution_id ?? undefined,{key_fingerprint:keyFingerprint});
         return safe({task_id:original,state:prior?.state ?? "unknown",execution_id:execution?.execution_id ?? null,verification:execution?.verification ?? "pending",result_code:execution?.result_code ?? null,replayed:true},prior ? 200 : 202);
       }
       const decision = authorizeProof(principal,"execute","daytona.proof","isolated",task,executor);
       if (!decision.allowed) return safe({error:"POLICY_DENIED",reason_code:decision.reason_code},403);
       const check = await executor.validate(task);
       if (!check.valid) return safe({error:"POLICY_DENIED"},403);
-      await event("idempotency.reserved",taskId);
+      await event("idempotency.reserved",taskId,undefined,undefined,{key_fingerprint:keyFingerprint});
       const machine = new TaskStateMachine();
       await store.createTask({task_id:taskId,actor_id:principal.actor_id,request_id:requestId,state:machine.state,policy_version:decision.policy_version,policy_reason:decision.reason_code,command_digest:requestFingerprint,created_at:task.created_at});
       await event("task.created",taskId);
@@ -146,8 +147,8 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         const status = await executor.status(submitted.execution_id);
         const result = await executor.result(submitted.execution_id);
         const verified = verifyExecution(taskId,submitted.execution_id,status,result,z.object({
-          provider:z.literal("daytona"),sandbox_id:z.string().min(1),session_id:z.string().min(1),command_id:z.string().min(1),
-          exit_code:z.literal(0),stdout:z.literal(PROOF_MARKER+"\n"),
+          provider:z.literal("daytona"),sandbox_id:z.string().min(1),sandbox_state:z.literal("started"),session_id:z.string().min(1),command_id:z.string().min(1),
+          exit_code:z.literal(0),stdout:z.literal(PROOF_MARKER+"\n"),stderr:z.literal(""),
           logs:z.object({stdout:z.literal(PROOF_MARKER+"\n"),stderr:z.literal("")}),
           cleanup:z.object({stopped:z.literal(true),deleted:z.literal(true),postDeleteVerified:z.literal(true)})
         }));
@@ -161,11 +162,13 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         const code = success ? "PROOF_VERIFIED" : ambiguous ? "PROVIDER_UNCERTAIN" : "VERIFICATION_REJECTED";
         await store.changeExecution(taskId,"running",{...pending,execution_id:submitted.execution_id,provider_id:submitted.execution_id,state,verification:verified.accepted ? "accepted" : "rejected",result_code:code});
         await event(success ? "verification.completed" : "verification.rejected",taskId,code,submitted.execution_id, {
+          provider: output?.provider,
           sandbox_id: output?.sandbox_id,
+          sandbox_state: output?.sandbox_state,
           session_id: output?.session_id,
           command_id: output?.command_id,
           exit_code: output?.exit_code,
-          output_exact: output?.stdout === PROOF_MARKER + "\n",
+          output_exact: output?.stdout === PROOF_MARKER + "\n" && output?.stderr === "",
           logs_exact: (output?.logs as {stdout?:unknown;stderr?:unknown} | undefined)?.stdout === PROOF_MARKER + "\n" &&
             (output?.logs as {stderr?:unknown} | undefined)?.stderr === "",
           cleanup: output?.cleanup
@@ -173,7 +176,7 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         await transition(state);
         await event(success ? "execution.completed" : "execution.failed",taskId,code,submitted.execution_id);
         await event("audit.persisted",taskId);
-        return safe({task_id:taskId,execution_id:submitted.execution_id,state,verification:success ? "accepted" : "rejected",result_code:code},success ? 200 : state === "unknown" ? 202 : 502);
+        return safe({request_id:requestId,task_id:taskId,execution_id:submitted.execution_id,state,verification:success ? "accepted" : "rejected",result_code:code},success ? 200 : state === "unknown" ? 202 : 502);
       } catch {
         await store.changeExecution(taskId,"running",{...pending,state:"unknown",verification:"unknown",result_code:"PROVIDER_UNCERTAIN"});
         await transition("unknown");

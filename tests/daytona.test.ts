@@ -32,6 +32,7 @@ interface FakeOptions {
   deleteError?: Error;
   lookupError?: Error;
   stillExists?: boolean;
+  stoppedState?: string;
 }
 
 function fakeProvider(options: FakeOptions = {}) {
@@ -56,6 +57,7 @@ function fakeProvider(options: FakeOptions = {}) {
       calls.stop += 1;
       if (options.stopError) throw options.stopError;
     },
+    async verifyStopped() { return options.stoppedState === undefined || options.stoppedState === "stopped"; },
     async delete() {
       calls.delete += 1;
       if (options.deleteError) throw options.deleteError;
@@ -87,6 +89,7 @@ test("Daytona maps a successful verified execution with provider correlation", a
   assert.deepEqual(result.output, {
     provider: "daytona",
     sandbox_id: "sandbox-proof-001",
+    sandbox_state: "started",
     command_id: "command-proof-001",
     session_id: "bridge-daytona-test-001",
     exit_code: 0,
@@ -107,6 +110,9 @@ test("SDK post-delete lookup accepts only authoritative 404, never transport or 
   } });
   const sandbox = await provider.create({name:"proof",labels:{},networkBlockAll:true,ttlMinutes:10});
   assert.equal(await sandbox.verifyDeleted(), false);
+  assert.equal(await sandbox.verifyStopped(), false);
+  lookup = async () => ({state:"stopped"});
+  assert.equal(await sandbox.verifyStopped(), true);
   lookup = async () => { throw new DaytonaNotFoundError("not found", 404); };
   assert.equal(await sandbox.verifyDeleted(), true);
   for (const error of [new Error("network unavailable"), new Error("authentication rejected"), new DaytonaNotFoundError("unconfirmed")]) {
@@ -153,7 +159,7 @@ test("Daytona maps execution failure and still cleans up", async () => {
 });
 
 test("Daytona rejects missing or uncertain post-delete evidence", async () => {
-  for (const options of [{ stillExists: true }, { lookupError: new Error("lookup unavailable") }]) {
+  for (const options of [{ stillExists: true }, { lookupError: new Error("lookup unavailable") }, { stoppedState:"started" }]) {
     const fake = fakeProvider(options);
     const executor = new DaytonaExecutor(fake.provider);
     const status = await executor.submit(task);

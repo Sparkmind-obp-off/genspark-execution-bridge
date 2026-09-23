@@ -31,6 +31,7 @@ export interface DaytonaSandboxHandle {
   execute(sessionId: string, command: string, timeoutSeconds: number): Promise<DaytonaCommandResponse>;
   logs(sessionId: string, commandId: string): Promise<DaytonaCommandLogs>;
   stop(): Promise<void>;
+  verifyStopped(): Promise<boolean>;
   delete(): Promise<void>;
   verifyDeleted(): Promise<boolean>;
 }
@@ -88,6 +89,7 @@ export class DaytonaSdkProvider implements DaytonaProvider {
       },
       logs: (sessionId, commandId) => sandbox.process.getSessionCommandLogs(sessionId, commandId),
       stop: () => sandbox.stop(60),
+      verifyStopped: async () => (await this.client.get(sandbox.id)).state === "stopped",
       delete: () => sandbox.delete(60, true),
       verifyDeleted: async () => {
         try {
@@ -181,6 +183,7 @@ export class DaytonaExecutor implements Executor {
     let result: ExecutionResult;
 
     try {
+      if (sandbox.state !== "started") throw new ExecutorError("DAYTONA_STATE_UNVERIFIED", "Sandbox did not report started state.");
       await sandbox.createSession(sessionId);
       const response = await sandbox.execute(sessionId, task.input.command as string, this.timeoutSeconds);
       if (typeof response.exitCode !== "number" || typeof (response.stdout ?? response.output) !== "string") {
@@ -200,6 +203,7 @@ export class DaytonaExecutor implements Executor {
             output: {
               provider: this.name,
               sandbox_id: sandbox.id,
+              sandbox_state: sandbox.state,
               command_id: commandId,
               session_id: sessionId,
               exit_code: response.exitCode,
@@ -234,7 +238,7 @@ export class DaytonaExecutor implements Executor {
     } finally {
       try {
         await sandbox.stop();
-        cleanup.stopped = true;
+        cleanup.stopped = await sandbox.verifyStopped();
       } catch {
         cleanup.stopped = false;
       }

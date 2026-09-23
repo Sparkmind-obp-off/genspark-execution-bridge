@@ -27,9 +27,9 @@ class TestStore implements GatewayStore {
 function fakeExecutor(options: {stdout?:string; executeError?:boolean; cleanupError?:boolean} = {}) {
   const calls={created:0,stopped:0,deleted:0};
   const provider:DaytonaProvider={async create(){calls.created++;return {
-    id:"sandbox-proof",async createSession(){},async execute(){if(options.executeError) throw Error("uncertain provider result");return {commandId:"command-proof",exitCode:0,stdout:options.stdout ?? "PHASE_5_EXECUTION_PROOF_OK\n",stderr:""};},
+    id:"sandbox-proof",state:"started",async createSession(){},async execute(){if(options.executeError) throw Error("uncertain provider result");return {commandId:"command-proof",exitCode:0,stdout:options.stdout ?? "PHASE_5_EXECUTION_PROOF_OK\n",stderr:""};},
     async logs(){return {stdout:options.stdout ?? "PHASE_5_EXECUTION_PROOF_OK\n",stderr:""};},
-    async stop(){calls.stopped++;},async delete(){calls.deleted++;if(options.cleanupError) throw Error("cleanup error");}, async verifyDeleted(){return !options.cleanupError;}
+    async stop(){calls.stopped++;},async verifyStopped(){return true;},async delete(){calls.deleted++;if(options.cleanupError) throw Error("cleanup error");}, async verifyDeleted(){return !options.cleanupError;}
   };}};
   return {executor:new DaytonaExecutor(provider),calls};
 }
@@ -72,6 +72,8 @@ test("authenticated proof persists verified terminal state, audit, replay, and c
   const response=await first.json() as {task_id:string;execution_id:string;state:string;result_code:string};
   assert.equal(response.state,"succeeded");assert.equal(response.result_code,"PROOF_VERIFIED");
   assert.equal(store.tasks.get(response.task_id)?.actor_id,"operator");
+  assert.equal(store.reservations.has("test-idempotency-key-12345"),false);
+  assert.match([...store.reservations.keys()][0],/^[0-9a-f]{64}$/);
   assert.equal(store.tasks.get(response.task_id)?.policy_version,"phase5-proof-v1");
   assert.equal(store.executions.get(response.task_id)?.verification,"accepted");
   assert.equal(store.events.some(e=>e.event==="provider.requested"),true);
