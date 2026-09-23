@@ -138,8 +138,7 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
       // After this point any uncertainty MUST remain unknown; never resubmit on replay.
       try {
         const submitted = await executor.submit(task);
-        const submittedOutput = submitted as ExecutionStatus & { output?: Record<string, unknown> };
-        await event("provider.responded",taskId,"returned",submitted.execution_id, { session_id: submittedOutput.output?.session_id });
+        await event("provider.responded",taskId,"returned",submitted.execution_id);
         const status = await executor.status(submitted.execution_id);
         const result = await executor.result(submitted.execution_id);
         const verified = verifyExecution(taskId,submitted.execution_id,status,result,z.object({
