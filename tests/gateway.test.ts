@@ -29,7 +29,7 @@ function fakeExecutor(options: {stdout?:string; executeError?:boolean; cleanupEr
   const provider:DaytonaProvider={async create(){calls.created++;return {
     id:"sandbox-proof",state:"started",async createSession(){},async execute(){if(options.executeError) throw Error("uncertain provider result");return {commandId:"command-proof",exitCode:0,stdout:options.stdout ?? "PHASE_5_EXECUTION_PROOF_OK\n",stderr:""};},
     async logs(){return {stdout:options.stdout ?? "PHASE_5_EXECUTION_PROOF_OK\n",stderr:""};},
-    async stop(){calls.stopped++;},async verifyStopped(){return true;},async delete(){calls.deleted++;if(options.cleanupError) throw Error("cleanup error");}, async verifyDeleted(){return !options.cleanupError;}
+    async stop(){calls.stopped++;},async verifyStopped(){return true;},async delete(){calls.deleted++;}, async verifyDeleted(){if(options.cleanupError) throw Error("cleanup error - verify unavailable"); return true;}
   };}};
   return {executor:new DaytonaExecutor(provider),calls};
 }

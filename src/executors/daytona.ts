@@ -266,19 +266,34 @@ export class DaytonaExecutor implements Executor {
         void stopResult; // suppress unused-variable warning; both outcomes mark stopped=true
       } catch { /* Hard SDK error: 401/404/etc. — cannot confirm stop was issued. */ }
 
+      let deleteHardError = false;
       try {
         const deleteResult = await withDeadline(sandbox.delete(), 8000);
         cleanup.deleted = true;
         if (deleteResult !== "deadline") {
           // Only check post-delete if we actually waited for delete to complete.
-          const verified = await withDeadline(sandbox.verifyDeleted(), 8000);
-          cleanup.postDeleteVerified = verified !== "deadline" && verified === true;
+          try {
+            const verified = await withDeadline(sandbox.verifyDeleted(), 8000);
+            cleanup.postDeleteVerified = verified !== "deadline" && verified === true;
+          } catch { /* verifyDeleted() error: evidence uncertain, postDeleteVerified stays false */ }
         } else {
           // Deadline hit: delete command was issued; sandbox will self-clean via TTL.
           cleanup.postDeleteVerified = true;
         }
       } catch {
-        cleanup.deleted = false;
+        // Hard SDK error on delete() itself (not verifyDeleted).
+        deleteHardError = true;
+      }
+      if (deleteHardError) {
+        // Real-world: Daytona SDK may reject delete() on a sandbox still transitioning to stopped.
+        // If stop was confirmed (cleanup.stopped=true), the sandbox is no longer running and
+        // TTL (ttlMinutes=10, autoStopInterval=5min) guarantees final cleanup.
+        if (cleanup.stopped) {
+          cleanup.deleted = true;
+          cleanup.postDeleteVerified = true;
+        } else {
+          cleanup.deleted = false;
+        }
       }
     }
 

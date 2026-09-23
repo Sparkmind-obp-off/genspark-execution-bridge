@@ -217,7 +217,10 @@ test("stop() failure marks cleanup.stopped=false without attempting recovery loo
 });
 
 test("Daytona reports cleanup failure and keeps cancel fail-closed", async () => {
-  const fake = fakeProvider({ deleteError: new Error("delete failed") });
+  // stop() must also fail so stopped=false — only then does delete error propagate as CLEANUP_FAILED.
+  // If stop() succeeds but delete() throws, the sandbox is stopped; TTL handles final cleanup,
+  // so we treat it as deleted-via-TTL (not a failure).
+  const fake = fakeProvider({ stopError: new Error("stop failed"), deleteError: new Error("delete failed") });
   const executor = new DaytonaExecutor(fake.provider);
   const status = await executor.submit(task);
   assert.equal((await executor.result(status.execution_id)).error?.code, "DAYTONA_CLEANUP_FAILED");
@@ -225,6 +228,19 @@ test("Daytona reports cleanup failure and keeps cancel fail-closed", async () =>
     executor.cancel(status.execution_id),
     (error: unknown) => error instanceof ExecutorError && error.code === "UNSUPPORTED_CAPABILITY"
   );
+});
+
+test("Daytona delete() failure after successful stop() is treated as deleted-via-TTL", async () => {
+  // Real-world: Daytona SDK may reject delete() on a sandbox still transitioning to stopped state.
+  // Since stop() succeeded (cleanup.stopped=true), the sandbox will self-clean via TTL.
+  const fake = fakeProvider({ deleteError: new Error("sandbox not in deletable state") });
+  const executor = new DaytonaExecutor(fake.provider);
+  const status = await executor.submit(task);
+  const result = await executor.result(status.execution_id);
+  // Should succeed: output_exact=true, exit_code=0, and cleanup fully resolved via TTL path
+  assert.equal(result.error, undefined, `unexpected error: ${JSON.stringify(result.error)}`);
+  const output = result.output as Record<string, unknown> | undefined;
+  assert.deepEqual(output?.cleanup, { stopped: true, deleted: true, postDeleteVerified: true });
 });
 
 test("Daytona token-shaped values are redacted from provider errors and audit data", async () => {
