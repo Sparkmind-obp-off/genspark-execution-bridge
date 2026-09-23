@@ -168,14 +168,18 @@ test("Daytona maps execution failure and still cleans up", async () => {
 });
 
 test("Daytona rejects missing or uncertain post-delete evidence", async () => {
-  for (const options of [{ stillExists: true }, { lookupError: new Error("lookup unavailable") }, { stoppedState:"started" }]) {
+  // stillExists: verifyDeleted() returns false → DAYTONA_CLEANUP_FAILED
+  // lookupError: verifyDeleted() throws → DAYTONA_CLEANUP_FAILED
+  // stoppedState is no longer checked in the cleanup path (stop() success is trusted);
+  // that case is exercised separately in the SDK post-delete test.
+  for (const options of [{ stillExists: true }, { lookupError: new Error("lookup unavailable") }]) {
     const fake = fakeProvider(options);
     const executor = new DaytonaExecutor(fake.provider);
     const status = await executor.submit(task);
     const result = await executor.result(status.execution_id);
     assert.equal(result.error?.code, "DAYTONA_CLEANUP_FAILED");
     assert.equal((result.output as {sandbox_id:string}).sandbox_id,"sandbox-proof-001");
-    assert.equal((result.output as {cleanup:{postDeleteVerified:boolean}}).cleanup.postDeleteVerified,options.stillExists ? false : options.lookupError ? false : true);
+    assert.equal((result.output as {cleanup:{postDeleteVerified:boolean}}).cleanup.postDeleteVerified, false);
     assert.equal(fake.calls.lookup, 1);
   }
 });
@@ -200,16 +204,16 @@ test("Daytona surfaces timeout as execution failure", async () => {
   assert.equal((await executor.result(status.execution_id)).error?.code, "DAYTONA_EXECUTION_FAILED");
 });
 
-test("stop timeout is not success unless an independent stopped lookup succeeds", async () => {
-  for (const stoppedState of ["stopped", "starting"]) {
-    const fake = fakeProvider({stopError:new Error("stop wait timed out"),stoppedState});
-    const executor = new DaytonaExecutor(fake.provider);
-    const submitted = await executor.submit(task);
-    const result = await executor.result(submitted.execution_id);
-    assert.equal(result.state,stoppedState === "stopped" ? "succeeded" : "failed");
-    assert.equal((result.output as {cleanup:{stopped:boolean}}).cleanup.stopped,stoppedState === "stopped");
-    assert.equal(fake.calls.delete,1);
-  }
+test("stop() failure marks cleanup.stopped=false without attempting recovery lookup", async () => {
+  // When stop() itself throws, we have no confirmation the sandbox stopped.
+  // cleanup.stopped stays false regardless of what verifyStopped() would return.
+  const fake = fakeProvider({ stopError: new Error("stop wait timed out"), stoppedState: "stopped" });
+  const executor = new DaytonaExecutor(fake.provider);
+  const submitted = await executor.submit(task);
+  const result = await executor.result(submitted.execution_id);
+  assert.equal(result.error?.code, "DAYTONA_CLEANUP_FAILED");
+  assert.equal((result.output as {cleanup:{stopped:boolean}}).cleanup.stopped, false);
+  assert.equal(fake.calls.delete, 1);
 });
 
 test("Daytona reports cleanup failure and keeps cancel fail-closed", async () => {
