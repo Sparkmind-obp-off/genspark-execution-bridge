@@ -3,34 +3,16 @@ import { D1GatewayStore } from "../storage/gateway-store";
 import { Auditor } from "../audit/audit";
 import { TaskStateMachine } from "../domain/state-machine";
 import { createGateway, normalizeOperatorToken, PROOF_COMMAND, type GatewayBindings } from "../gateway/gateway";
+import { ownerSession, sameOrigin } from "./owner-auth";
 
-// This bridge accepts ONLY an active Cloudflare token for this project's own account.
-// It never accepts an operator gateway secret or arbitrary commands, URLs, or provider options.
-const ACCOUNT_ID = "a167a50f1272635d3c1145aab3cd8f98";
-const APPROVED_TOKEN_ID = "3b63f9c19cc76418b55ce5b2f81ad20d"; // identifier, never the credential
+// The owner's browser only supplies a server-side session. The gateway credential remains internal.
 const gateway = createGateway();
 const reply = (body: object, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
-async function authorize(request: Request): Promise<boolean> {
-  const header = request.headers.get("authorization") ?? "";
-  if (!/^Bearer [A-Za-z0-9_-]{32,512}$/.test(header)) return false;
-  try {
-    // Both calls use the official, fixed Cloudflare API endpoints. Never log the request.
-    const headers = { authorization: header, accept: "application/json" };
-    const verify = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", { headers, signal: AbortSignal.timeout(10000) });
-    if (!verify.ok) return false;
-    const token = await verify.json() as { success?: boolean; result?: { id?: string; status?: string } };
-    if (token.success !== true || token.result?.status !== "active" || token.result.id !== APPROVED_TOKEN_ID) return false;
-    const account = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}`, { headers, signal: AbortSignal.timeout(10000) });
-    if (!account.ok) return false;
-    const identity = await account.json() as { success?: boolean; result?: { id?: string } };
-    return identity.success === true && identity.result?.id === ACCOUNT_ID;
-  } catch { return false; }
-}
-
 export async function operatorBridge(request: Request, env: GatewayBindings): Promise<Response> {
   const path = new URL(request.url).pathname;
-  if (!await authorize(request)) return reply({ error: "UNAUTHORIZED" }, 401);
+  if (!await ownerSession(request,env)) return reply({ error: "UNAUTHORIZED" }, 401);
+  if (!["GET","HEAD"].includes(request.method) && !sameOrigin(request)) return reply({error:"FORBIDDEN"},403);
   const operatorToken = normalizeOperatorToken(env.GATEWAY_OPERATOR_TOKEN);
   if (!env.DB || !operatorToken) return reply({ error: "UNAVAILABLE" }, 503);
 

@@ -24,6 +24,7 @@ const requestSchema = z.object({
 export interface GatewayBindings {
   DB?: D1Database;
   GATEWAY_OPERATOR_TOKEN?: string;
+  OWNER_LOGIN_CREDENTIAL?: string;
   DAYTONA_API_KEY?: string;
   GATEWAY_EXECUTION_ENABLED?: string;
 }

@@ -70,13 +70,14 @@ Unknown resources return `UNKNOWN_RESOURCE`; malformed inputs return `INVALID_IN
 
 | Method/path | Purpose |
 |---|---|
-| `GET /` | Responsive operator console; approved Cloudflare token entered only in browser memory |
+| `GET /` | Owner sign-in and responsive production console; no infrastructure credentials in browser |
+| `POST /owner/login`, `GET /owner/session`, `POST /owner/logout` | Dedicated owner credential → D1-backed HttpOnly session → revocation |
 | `GET /health` | Service and runtime capability status (not execution proof) |
-| `GET /operator/executions` | Approved Cloudflare operator identity; D1-backed recent task list |
-| `GET /operator/executions/:task_id` | Approved operator identity; correlated durable state and audit |
-| `POST /operator/proof`, `/operator/replay`, `/operator/conflict` | Approved operator identity; fixed proof with idempotency key |
-| `POST /operator/durability`, `GET /operator/durability/:id` | Approved operator identity; synthetic D1 cross-request check |
-| `GET|POST /operator/sandbox/:task_id` | Approved operator identity; provider cleanup inspection/recovery |
+| `GET /operator/executions` | Authenticated owner session; D1-backed recent task list |
+| `GET /operator/executions/:task_id` | Authenticated owner session; correlated durable state and audit |
+| `POST /operator/proof`, `/operator/replay`, `/operator/conflict` | Authenticated owner session; fixed proof with idempotency key |
+| `POST /operator/durability`, `GET /operator/durability/:id` | Authenticated owner session; synthetic D1 cross-request check |
+| `GET|POST /operator/sandbox/:task_id` | Authenticated owner session; provider cleanup inspection/recovery |
 | `POST /mcp` | MCP Streamable HTTP endpoint |
 | `GET /mcp` | MCP transport request handling where supported by the SDK |
 | `POST /execute` | Single-operator authenticated proof-only execution, disabled by default; strict request + idempotency key |
@@ -146,7 +147,7 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 
 - Canonical tasks, executor results, policy decisions, and verification outcomes are strongly typed TypeScript objects.
 - `MockExecutor` state and audit events are runtime-local in-memory data for deterministic Phase 1 behavior.
-- The Phase 5 BYOK Pages gateway uses Cloudflare D1 (`DB`, `genspark-execution-bridge-gateway`) with versioned SQL migrations for durable task/execution/idempotency/audit records. Raw commands, provider output and credentials are not persisted.
+- The Phase 5 BYOK Pages gateway uses Cloudflare D1 (`DB`, `genspark-execution-bridge-gateway`) with versioned SQL migrations for durable task/execution/idempotency/audit records and hashed owner sessions/login-attempt counters. The owner credential is a separate encrypted Pages secret; session tokens are stored only as SHA-256 digests. Raw commands, provider output and credentials are not persisted.
 - `DaytonaExecutor` keeps in-flight result state only for the request; the gateway persists safe terminal state, verification and audit to D1. It never marks a cleanup timeout or TTL as deletion proof.
 - `D1GatewayStore` implements `TaskStore`, `ExecutionStore`, `IdempotencyStore`, and `AuditSink` without changing the existing executor contract. The legacy proof MCP uses its in-memory sink only for harmless fixed resources.
 
@@ -164,7 +165,7 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - A `GensparkCliExecutor`. Phase 3B recorded `CLI_EXECUTOR_NOT_VERIFIED` after the authorized account was blocked by the CLI's paid-plan/500-credit gate before task creation.
 - General production mutations, deployments initiated as tasks, arbitrary shell execution, or write-capable MCP tools. The only implemented gateway mutation is an exact harmless proof command, default DISABLED.
 - Independent post-deployment proof of Daytona execution, stop, delete and authoritative absence; this must be measured against the latest deployment. Never call unknown provider cleanup successful.
-- Multi-tenancy, self-service user accounts, approval workflows, arbitrary commands, and browser persistence of operator credentials are intentionally unsupported. The single-operator UI verifies an exact approved Cloudflare identity and keeps its token in memory only.
+- Multi-tenancy, self-service user accounts, approval workflows and arbitrary commands are intentionally unsupported. Owner login uses a dedicated owner credential, D1-backed revocable sessions and server-side authorization; no gateway or Cloudflare credentials are submitted by the browser.
 - A completed live Genspark-to-MCP connection proof for a deployed URL.
 - Durable cross-request MCP audit evidence in production; the current in-memory sink is isolate-local.
 
@@ -183,7 +184,7 @@ The adapter accepts canonical low-risk `execution` tasks with `input.command` an
 
 ## Operator guide
 
-Open `/` over HTTPS and enter the approved Cloudflare operator API token in the sign-in form. The browser does not persist it; refresh/logout clears it. View production executions and durable audit, or run the locked proof with a generated idempotency key. Replay does not submit a second sandbox; conflict returns HTTP 409. If an execution becomes `unknown`, do not rerun it; use the detail view’s bounded cleanup verification action, which inspects the correlated sandbox without submitting another command. Only an independent provider lookup confirming absence closes cleanup. Credentials must never be pasted into chat, URLs, or source code.
+Open `https://genspark-execution-bridge.pages.dev/` over HTTPS; enter identifier `owner` and the separately delivered owner credential. The owner credential is not a Cloudflare, Daytona, database, or gateway secret. A secure HttpOnly SameSite cookie persists across refresh for seven days; Sign out revokes the session in D1 immediately. To rotate/reset, set a new cryptographically random 32+ character `OWNER_LOGIN_CREDENTIAL` in the Cloudflare Pages project's production secrets and deliver it to the owner through a private channel. Existing sessions are rejected on rotation (credential fingerprint check); no code redeploy is required. Rate limiting locks the requesting IP for 15 minutes after five incorrect attempts. View production executions and durable audit, or run the locked proof with a generated idempotency key. Replay does not submit a second sandbox; conflict returns HTTP 409. If an execution becomes `unknown`, do not rerun it; use the detail view’s bounded cleanup verification action, which inspects the correlated sandbox without submitting another command. Only an independent provider lookup confirming absence closes cleanup. Credentials must never be pasted into chat, URLs, or source code.
 
 ## Canonical contracts
 
