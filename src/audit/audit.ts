@@ -20,6 +20,7 @@ export const auditEventNames = [
   "execution.state_changed",
   "provider.requested",
   "provider.responded",
+  "provider.cleanup_recovered",
   "audit.persisted"
 ] as const;
 

@@ -1,5 +1,6 @@
 import { Daytona, DaytonaNotFoundError } from "@daytona/sdk";
 import { D1GatewayStore } from "../storage/gateway-store";
+import { Auditor } from "../audit/audit";
 import { createGateway, normalizeOperatorToken, PROOF_COMMAND, type GatewayBindings } from "../gateway/gateway";
 
 // This bridge accepts ONLY an active Cloudflare token for this project's own account.
@@ -45,7 +46,7 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
       const record = await env.DB.prepare("SELECT id,created_at FROM gateway_durability_proof WHERE id=? AND actor_id=?").bind(id,"operator").first<{id:string;created_at:string}>();
       return record ? reply(record) : reply({error:"NOT_FOUND"},404);
     }
-    if (/^\/operator\/sandbox\/[0-9a-f-]{36}$/.test(path) && request.method === "GET") {
+    if (/^\/operator\/sandbox\/[0-9a-f-]{36}$/.test(path) && ["GET","POST"].includes(request.method)) {
       const taskId = path.slice("/operator/sandbox/".length);
       const store = new D1GatewayStore(env.DB);
       const task = await store.getTask(taskId);
@@ -56,8 +57,26 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
       const client = new Daytona({apiKey:env.DAYTONA_API_KEY,requestTimeoutMs:15000});
       try {
         const sandbox = await client.get(match[1]);
-        return reply({task_id:taskId,sandbox_id:match[1],absent:false,state:sandbox.state,
-          labels_verified:sandbox.labels?.bridge === "genspark-execution-bridge" && sandbox.labels?.task_id === taskId});
+        const labelsVerified = sandbox.labels?.bridge === "genspark-execution-bridge" && sandbox.labels?.task_id === taskId;
+        if (request.method === "GET") return reply({task_id:taskId,sandbox_id:match[1],absent:false,state:sandbox.state,labels_verified:labelsVerified});
+        if (await request.text() !== "" || task.state !== "unknown" || !labelsVerified) return reply({error:"POLICY_DENIED"},403);
+        if (sandbox.state !== "stopped") await sandbox.stop(30);
+        const stopped = (await client.get(match[1])).state === "stopped";
+        if (!stopped) return reply({task_id:taskId,cleanup_verified:false},202);
+        await sandbox.delete(30,false);
+        let absent = false;
+        for (let attempt=0;attempt<10;attempt++) {
+          try { await client.get(match[1]); }
+          catch (error) {
+            if (error instanceof DaytonaNotFoundError && error.statusCode === 404) { absent = true; break; }
+            throw error;
+          }
+          if (attempt<9) await new Promise(resolve=>setTimeout(resolve,2000));
+        }
+        if (!absent) return reply({task_id:taskId,cleanup_verified:false},202);
+        await new Auditor(store).emit({event:"provider.cleanup_recovered",request_id:crypto.randomUUID(),actor:"operator",
+          task_id:taskId,execution_id:execution?.execution_id ?? undefined,outcome:"verified",details:{sandbox_id:match[1],stopped:true,deleted:true,postDeleteVerified:true}});
+        return reply({task_id:taskId,sandbox_id:match[1],cleanup_verified:true,post_delete_absent:true});
       } catch (error) {
         if (error instanceof DaytonaNotFoundError && error.statusCode === 404)
           return reply({task_id:taskId,sandbox_id:match[1],absent:true});

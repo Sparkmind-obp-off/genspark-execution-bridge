@@ -90,16 +90,20 @@ export class DaytonaSdkProvider implements DaytonaProvider {
       logs: (sessionId, commandId) => sandbox.process.getSessionCommandLogs(sessionId, commandId),
       stop: () => sandbox.stop(60),
       verifyStopped: async () => (await this.client.get(sandbox.id)).state === "stopped",
-      delete: () => sandbox.delete(60, true),
+      delete: () => sandbox.delete(30, false),
       verifyDeleted: async () => {
-        try {
-          await this.client.get(sandbox.id);
-          return false;
-        } catch (error) {
-          // Only an authoritative 404 proves absence; auth/transport/5xx errors do not.
-          if (error instanceof DaytonaNotFoundError && error.statusCode === 404) return true;
-          throw error;
+        // Deletion is asynchronous. Only an authoritative 404 proves absence;
+        // a successful delete response or a transient/transport error never does.
+        for (let attempt = 0; attempt < 10; attempt++) {
+          try {
+            await this.client.get(sandbox.id);
+          } catch (error) {
+            if (error instanceof DaytonaNotFoundError && error.statusCode === 404) return true;
+            throw error;
+          }
+          if (attempt < 9) await new Promise(resolve => setTimeout(resolve, 2000));
         }
+        return false;
       }
     };
   }
