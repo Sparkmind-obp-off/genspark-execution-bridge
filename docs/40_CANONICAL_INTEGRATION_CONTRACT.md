@@ -1,0 +1,3 @@
+# Canonical integration contract
+
+Depends on 36–39, 41. Same-origin browser → approved Cloudflare identity verification → operator bridge → gateway internal bearer → policy → D1 reservation → Daytona SDK/REST → independent result verification → D1 audit → browser readback. All external credentials are Cloudflare Pages runtime secrets only. A newly generated idempotency key creates at most one sandbox; same key + identical task reads prior result; same key + changed task is 409. The gateway may remain unknown after provider transport errors; never blindly retry. Public MCP is read-only legacy proof and not a substitute for remote Genspark execution. Production connectivity must be measured on the deployed URL, independently of localhost.

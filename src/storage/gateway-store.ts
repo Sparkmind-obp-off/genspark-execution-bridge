@@ -15,6 +15,7 @@ export interface Reservation {
 export interface TaskStore {
   createTask(task: TaskRecord): Promise<void>;
   getTask(id: string): Promise<TaskRecord | null>;
+  listTasks(actorId: string): Promise<TaskRecord[]>;
   changeState(id: string, from: string, to: string): Promise<void>;
 }
 export interface ExecutionStore {
@@ -65,6 +66,14 @@ export class D1GatewayStore implements GatewayStore {
   }
   getTask(id: string): Promise<TaskRecord | null> {
     return this.first(this.db.prepare("SELECT * FROM gateway_tasks WHERE task_id=?").bind(id));
+  }
+  async listTasks(actorId: string): Promise<TaskRecord[]> {
+    try {
+      const rows = await this.db.prepare("SELECT * FROM gateway_tasks WHERE actor_id=? ORDER BY created_at DESC LIMIT 50")
+        .bind(actorId).all<TaskRecord>();
+      if (!rows.success) throw new StorageFailure();
+      return rows.results;
+    } catch { throw new StorageFailure(); }
   }
   async changeState(id: string, from: string, to: string): Promise<void> {
     const result = await this.run(this.db.prepare("UPDATE gateway_tasks SET state=? WHERE task_id=? AND state=?").bind(to,id,from));

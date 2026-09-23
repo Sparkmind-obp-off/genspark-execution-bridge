@@ -1,0 +1,7 @@
+# Canonical full-stack build contract
+
+Authority: security and runtime truth take precedence. This document supersedes historical phase prompts 01–35 as an implementation target, not as evidence of completion. Index: `43_CANONICAL_DOCUMENT_INDEX.md`.
+
+Product: Genspark Execution Bridge, a **proof-only** operator console. The supported workflow is an approved Cloudflare operator identity → same-origin console → authenticated fixed-purpose operator API → D1 durable reservation/task/execution/audit → real Daytona sandbox → exact locked proof command → independent stop/delete/absence verification → durable result. Genspark remote execution, arbitrary shell, arbitrary URLs, multi-user signup, and cancel/retry are unsupported, not aspirational features of this product. Never turn them on without an independently verified contract.
+
+UI must never embed credentials, cache them in browser storage, or manufacture results. Backend authorization is authoritative. Idempotency is reserved before any provider request; unknown outcomes are never resubmitted. Cleanup timeout, TTL, and accepted HTTP responses do not prove deletion. Production verification requires actual request/response evidence, not a successful local test or green build. Deployment is Cloudflare Pages BYOK on branch `main`; D1 is the persistent store and Daytona is an external provider. Read 37–42 for subsystem contracts, 44 for evidence requirements. Actual implementation and deployment may still be blocked by provider state.

@@ -3,6 +3,7 @@ import { createSafeMcpHandler } from "./mcp/server";
 import { proofProject } from "./mcp/safe-tools";
 import { createGateway, type GatewayBindings } from "./gateway/gateway";
 import { operatorBridge } from "./operator/bridge";
+import { dashboard } from "./operator/dashboard";
 
 const auditSink = new InMemoryAuditSink();
 const auditor = new Auditor(auditSink);
@@ -41,6 +42,8 @@ export default {
         genspark_remote_execution: "unverified"
       });
     }
+
+    if (url.pathname === "/" && request.method === "GET") return dashboard();
 
     if (url.pathname.startsWith("/operator/")) return operatorBridge(request, env);
 

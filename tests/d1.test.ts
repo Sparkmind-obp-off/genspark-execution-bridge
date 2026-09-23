@@ -19,6 +19,8 @@ test("D1 migration, unique atomic reservation, cross-isolate reads and durable a
     assert.equal(await b.reserve({...r,fingerprint:"changed"}),"conflict");
     await a.createTask({task_id:"task-a",actor_id:"operator",request_id:"req",state:"created",policy_version:"p5",policy_reason:"PROOF_ALLOWED",command_digest:"digest",created_at:r.created_at});
     assert.equal((await b.getTask("task-a"))?.policy_reason,"PROOF_ALLOWED");
+    assert.equal((await b.listTasks("operator")).length,1);
+    assert.equal((await b.listTasks("other")).length,0);
     await b.changeState("task-a","created","validated");
     assert.equal((await a.getTask("task-a"))?.state,"validated");
     await a.createExecution({task_id:"task-a",execution_id:null,state:"queued",verification:"pending",result_code:null,provider_id:null,updated_at:r.created_at});

@@ -104,9 +104,6 @@ test("Daytona maps a successful verified execution with provider correlation", a
 test("SDK post-delete lookup accepts only authoritative 404, never transport or auth errors", async () => {
   const provider = new DaytonaSdkProvider("test-only-sdk-key");
   let lookup: () => Promise<unknown> = async () => ({ id: "sandbox-test", state: "running" });
-  // Patch setTimeout to be a no-op so retry loops complete immediately in tests.
-  const origTimeout = globalThis.setTimeout;
-  (globalThis as Record<string, unknown>).setTimeout = (fn: () => void) => { fn(); return 0 as unknown as ReturnType<typeof setTimeout>; };
   // verifyDeleted now uses direct fetch(); mock globalThis.fetch for this test.
   const origFetch = globalThis.fetch;
   let fetchStatus = 200;
@@ -121,10 +118,16 @@ test("SDK post-delete lookup accepts only authoritative 404, never transport or 
   } });
   try {
     const sandbox = await provider.create({name:"proof",labels:{},networkBlockAll:true,ttlMinutes:10});
+    fetchStatus = 401;
+    await assert.rejects(sandbox.stop());
+    await assert.rejects(sandbox.delete());
+    fetchStatus = 200;
+    await sandbox.stop();
+    await sandbox.delete();
     // verifyDeleted: sandbox exists (200) → false
     fetchStatus = 200; fetchShouldThrow = null;
     assert.equal(await sandbox.verifyDeleted(), false);
-    // verifyStopped: loop exhausts with non-"stopped" state → false
+    // verifyStopped: independent non-stopped lookup is not proof
     assert.equal(await sandbox.verifyStopped(), false);
     // verifyStopped: first poll already returns "stopped" → true
     lookup = async () => ({state:"stopped"});
@@ -138,7 +141,6 @@ test("SDK post-delete lookup accepts only authoritative 404, never transport or 
       assert.equal(await sandbox.verifyDeleted(), false);
     }
   } finally {
-    globalThis.setTimeout = origTimeout;
     globalThis.fetch = origFetch;
   }
 });
@@ -183,9 +185,7 @@ test("Daytona maps execution failure and still cleans up", async () => {
 test("Daytona rejects missing or uncertain post-delete evidence", async () => {
   // stillExists: verifyDeleted() returns false → DAYTONA_CLEANUP_FAILED
   // lookupError: verifyDeleted() throws → DAYTONA_CLEANUP_FAILED
-  // stoppedState is no longer checked in the cleanup path (stop() success is trusted);
-  // that case is exercised separately in the SDK post-delete test.
-  for (const options of [{ stillExists: true }, { lookupError: new Error("lookup unavailable") }]) {
+  for (const options of [{ stillExists: true }, { lookupError: new Error("lookup unavailable") }, { stoppedState: "running" }]) {
     const fake = fakeProvider(options);
     const executor = new DaytonaExecutor(fake.provider);
     const status = await executor.submit(task);
@@ -193,7 +193,7 @@ test("Daytona rejects missing or uncertain post-delete evidence", async () => {
     assert.equal(result.error?.code, "DAYTONA_CLEANUP_FAILED");
     assert.equal((result.output as {sandbox_id:string}).sandbox_id,"sandbox-proof-001");
     assert.equal((result.output as {cleanup:{postDeleteVerified:boolean}}).cleanup.postDeleteVerified, false);
-    assert.equal(fake.calls.lookup, 1);
+    assert.equal(fake.calls.lookup, options.stoppedState ? 0 : 1);
   }
 });
 
@@ -217,23 +217,18 @@ test("Daytona surfaces timeout as execution failure", async () => {
   assert.equal((await executor.result(status.execution_id)).error?.code, "DAYTONA_EXECUTION_FAILED");
 });
 
-test("stop() failure marks cleanup.stopped=false without attempting recovery lookup", async () => {
-  // When stop() itself throws, we have no confirmation the sandbox stopped.
-  // cleanup.stopped stays false regardless of what verifyStopped() would return.
-  const fake = fakeProvider({ stopError: new Error("stop wait timed out"), stoppedState: "stopped" });
+test("stop timeout remains uncertain until independent stopped lookup", async () => {
+  const fake = fakeProvider({ stopError: new Error("stop wait timed out"), stoppedState: "running" });
   const executor = new DaytonaExecutor(fake.provider);
   const submitted = await executor.submit(task);
   const result = await executor.result(submitted.execution_id);
   assert.equal(result.error?.code, "DAYTONA_CLEANUP_FAILED");
   assert.equal((result.output as {cleanup:{stopped:boolean}}).cleanup.stopped, false);
-  assert.equal(fake.calls.delete, 1);
+  assert.equal(fake.calls.delete, 0);
 });
 
 test("Daytona reports cleanup failure and keeps cancel fail-closed", async () => {
-  // stop() must also fail so stopped=false — only then does delete error propagate as CLEANUP_FAILED.
-  // If stop() succeeds but delete() throws, the sandbox is stopped; TTL handles final cleanup,
-  // so we treat it as deleted-via-TTL (not a failure).
-  const fake = fakeProvider({ stopError: new Error("stop failed"), deleteError: new Error("delete failed") });
+  const fake = fakeProvider({ stopError: new Error("stop failed"), stoppedState: "running", deleteError: new Error("delete failed") });
   const executor = new DaytonaExecutor(fake.provider);
   const status = await executor.submit(task);
   assert.equal((await executor.result(status.execution_id)).error?.code, "DAYTONA_CLEANUP_FAILED");
@@ -243,17 +238,14 @@ test("Daytona reports cleanup failure and keeps cancel fail-closed", async () =>
   );
 });
 
-test("Daytona delete() failure after successful stop() is treated as deleted-via-TTL", async () => {
-  // Real-world: Daytona SDK may reject delete() on a sandbox still transitioning to stopped state.
-  // Since stop() succeeded (cleanup.stopped=true), the sandbox will self-clean via TTL.
-  const fake = fakeProvider({ deleteError: new Error("sandbox not in deletable state") });
+test("Daytona delete failure cannot be converted to TTL success", async () => {
+  const fake = fakeProvider({ deleteError: new Error("sandbox not in deletable state"), stillExists: true });
   const executor = new DaytonaExecutor(fake.provider);
   const status = await executor.submit(task);
   const result = await executor.result(status.execution_id);
-  // Should succeed: output_exact=true, exit_code=0, and cleanup fully resolved via TTL path
-  assert.equal(result.error, undefined, `unexpected error: ${JSON.stringify(result.error)}`);
-  const output = result.output as Record<string, unknown> | undefined;
-  assert.deepEqual(output?.cleanup, { stopped: true, deleted: true, postDeleteVerified: true });
+  assert.equal(result.error?.code, "DAYTONA_CLEANUP_FAILED");
+  const output = result.output as {cleanup:{stopped:boolean;deleted:boolean;postDeleteVerified:boolean}};
+  assert.deepEqual(output.cleanup, { stopped: true, deleted: false, postDeleteVerified: false });
 });
 
 test("Daytona token-shaped values are redacted from provider errors and audit data", async () => {

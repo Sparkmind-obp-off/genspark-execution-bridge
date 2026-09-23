@@ -95,30 +95,28 @@ export class DaytonaSdkProvider implements DaytonaProvider {
         // On Cloudflare Workers (wall-clock ~30s budget), setTimeout polling is not viable.
         // Instead, fire the HTTP stop request directly with a short AbortSignal timeout.
         // The sandbox has autoStopInterval=5min + ttlMinutes=10 so TTL covers any missed stop.
-        await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}/stop`, {
+        const response = await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}/stop`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
           signal: AbortSignal.timeout(7000)
         });
-        // Intentionally not waiting for stopped state — withDeadline in finally block handles TTL fallback.
+        if (!response.ok) throw new ExecutorError("DAYTONA_STOP_FAILED", "Daytona rejected sandbox stop.");
+        // An accepted stop request is not evidence the sandbox is stopped.
       },
       verifyStopped: async () => {
         // A short stop call may time out after acceptance; only a separate
         // provider lookup reporting stopped qualifies as proof of completion.
-        for (let attempt = 0; attempt < 6; attempt++) {
-          const s = await this.client.get(sandbox.id);
-          if (s.state === "stopped") return true;
-          if (attempt < 5) await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-        return false;
+        const s = await this.client.get(sandbox.id);
+        return s.state === "stopped";
       },
       delete: async () => {
         // Direct HTTP delete to avoid SDK polling on Cloudflare Workers budget.
-        await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}`, {
+        const response = await fetch(`https://app.daytona.io/api/sandbox/${sandbox.id}`, {
           method: "DELETE",
           headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
           signal: AbortSignal.timeout(7000)
         });
+        if (!response.ok) throw new ExecutorError("DAYTONA_DELETE_FAILED", "Daytona rejected sandbox deletion.");
       },
       verifyDeleted: async () => {
         // Deletion is asynchronous. Only an authoritative 404 proves absence;
@@ -269,51 +267,13 @@ export class DaytonaExecutor implements Executor {
         error: { code: mapped.code, message: this.safeMessage(mapped.message) }
       };
     } finally {
-      // Cloudflare Workers have a limited wall-clock budget (~30s free / 300s paid).
-      // The sandbox has autoStopInterval=5min and ttlMinutes=10 so it self-cleans even
-      // without explicit cleanup.  We race stop()/delete() against a 25s deadline and
-      // treat a timeout-abort the same as success for the stop command (the API call
-      // was issued; the sandbox will self-terminate via TTL if the stop did not land).
-      // Only a hard SDK error (non-timeout, e.g. 401/404) keeps stopped=false.
-      const withDeadline = <T>(p: Promise<T>, ms: number): Promise<T | "deadline"> =>
-        Promise.race([p, new Promise<"deadline">(r => setTimeout(() => r("deadline"), ms))]);
-
-      try {
-        const stopResult = await withDeadline(sandbox.stop(), 8000);
-        // "deadline" means the stop command was issued but we ran out of time waiting.
-        // Treat it as successfully issued — the sandbox will self-clean via TTL.
-        cleanup.stopped = true;
-        void stopResult; // suppress unused-variable warning; both outcomes mark stopped=true
-      } catch { /* Hard SDK error: 401/404/etc. — cannot confirm stop was issued. */ }
-
-      let deleteHardError = false;
-      try {
-        const deleteResult = await withDeadline(sandbox.delete(), 8000);
-        cleanup.deleted = true;
-        if (deleteResult !== "deadline") {
-          // Only check post-delete if we actually waited for delete to complete.
-          try {
-            const verified = await withDeadline(sandbox.verifyDeleted(), 8000);
-            cleanup.postDeleteVerified = verified !== "deadline" && verified === true;
-          } catch { /* verifyDeleted() error: evidence uncertain, postDeleteVerified stays false */ }
-        } else {
-          // Deadline hit: delete command was issued; sandbox will self-clean via TTL.
-          cleanup.postDeleteVerified = true;
-        }
-      } catch {
-        // Hard SDK error on delete() itself (not verifyDeleted).
-        deleteHardError = true;
-      }
-      if (deleteHardError) {
-        // Real-world: Daytona SDK may reject delete() on a sandbox still transitioning to stopped.
-        // If stop was confirmed (cleanup.stopped=true), the sandbox is no longer running and
-        // TTL (ttlMinutes=10, autoStopInterval=5min) guarantees final cleanup.
-        if (cleanup.stopped) {
-          cleanup.deleted = true;
-          cleanup.postDeleteVerified = true;
-        } else {
-          cleanup.deleted = false;
-        }
+      // Only a provider lookup of stopped and a separate post-delete 404
+      // constitute cleanup proof. A timeout, accepted request, or TTL is not proof.
+      try { await sandbox.stop(); } catch { /* retain uncertain state */ }
+      try { cleanup.stopped = await sandbox.verifyStopped(); } catch { /* retain uncertain state */ }
+      if (cleanup.stopped) {
+        try { await sandbox.delete(); cleanup.deleted = true; } catch { /* retain uncertain state */ }
+        try { cleanup.postDeleteVerified = await sandbox.verifyDeleted(); } catch { /* retain uncertain state */ }
       }
     }
 

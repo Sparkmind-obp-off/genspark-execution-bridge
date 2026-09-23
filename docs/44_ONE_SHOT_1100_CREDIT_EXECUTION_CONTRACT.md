@@ -1,0 +1,3 @@
+# One-shot execution and evidence contract
+
+Depends on 36–43. Execute audit → implementation → tests → security review → build → GitHub push → Cloudflare BYOK deployment → independent production smoke/E2E → final report in the same session. Do not stop at an internal phase. Evidence must distinguish local tests from production results, and deployment success from external provider cleanup proof. Capture status codes, correlated IDs and safe audit metadata only; do not capture secrets. If an external service prevents the live proof, finish the safe implementation and report BLOCKED with exact remaining evidence rather than marking PASS. Git must be clean and final SHA recorded. Never replace this with another phase prompt.

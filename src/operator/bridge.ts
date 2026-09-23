@@ -116,6 +116,13 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
         return reply({error:"PROVIDER_UNCERTAIN"},503);
       }
     }
+    if (path === "/operator/executions" && request.method === "GET") {
+      const records = await new D1GatewayStore(env.DB).listTasks("operator");
+      return reply({ items: records.map(record => ({
+        task_id: record.task_id, request_id: record.request_id, state: record.state,
+        policy_version: record.policy_version, created_at: record.created_at
+      })) });
+    }
     if (/^\/operator\/executions\/[0-9a-f-]{36}$/.test(path) && request.method === "GET") {
       const id = path.slice("/operator/executions/".length);
       return gateway(new Request(new URL(`/executions/${id}`,request.url),{headers:{authorization:`Bearer ${operatorToken}`}}),env);

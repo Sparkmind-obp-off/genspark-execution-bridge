@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Phase 4 Daytona proof passed. Phase 5B is BLOCKED, not PASS: the validated Phase 5B safety fixes were deployed on 2026-09-23, but production execution remains DISABLED (`production_execution:false`). Encrypted runtime secrets are listed, while valid operator authentication, credential rotation, cross-request D1/idempotency, and the live Daytona gateway proof have not been independently verified. See `docs/32_PHASE_5B_PRODUCTION_PROOF_REPORT.md`. Phase 6 has not started; Genspark remote execution remains disabled.
+- **Status:** Proof-only operator console and Daytona gateway. Production completion requires independent live cleanup and E2E evidence; see the canonical contracts in `docs/43_CANONICAL_DOCUMENT_INDEX.md`. Genspark remote execution remains unverified and disabled. Do not infer Daytona success from the health endpoint.
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -70,7 +70,13 @@ Unknown resources return `UNKNOWN_RESOURCE`; malformed inputs return `INVALID_IN
 
 | Method/path | Purpose |
 |---|---|
-| `GET /health` | Service and Phase 1 capability status |
+| `GET /` | Responsive operator console; approved Cloudflare token entered only in browser memory |
+| `GET /health` | Service and runtime capability status (not execution proof) |
+| `GET /operator/executions` | Approved Cloudflare operator identity; D1-backed recent task list |
+| `GET /operator/executions/:task_id` | Approved operator identity; correlated durable state and audit |
+| `POST /operator/proof`, `/operator/replay`, `/operator/conflict` | Approved operator identity; fixed proof with idempotency key |
+| `POST /operator/durability`, `GET /operator/durability/:id` | Approved operator identity; synthetic D1 cross-request check |
+| `GET|POST /operator/sandbox/:task_id` | Approved operator identity; provider cleanup inspection/recovery |
 | `POST /mcp` | MCP Streamable HTTP endpoint |
 | `GET /mcp` | MCP transport request handling where supported by the SDK |
 | `POST /execute` | Single-operator authenticated proof-only execution, disabled by default; strict request + idempotency key |
@@ -141,7 +147,7 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - Canonical tasks, executor results, policy decisions, and verification outcomes are strongly typed TypeScript objects.
 - `MockExecutor` state and audit events are runtime-local in-memory data for deterministic Phase 1 behavior.
 - The Phase 5 BYOK Pages gateway uses Cloudflare D1 (`DB`, `genspark-execution-bridge-gateway`) with versioned SQL migrations for durable task/execution/idempotency/audit records. Raw commands, provider output and credentials are not persisted.
-- `DaytonaExecutor` stores terminal status/results in-memory and maps provider sandbox/command IDs into canonical correlation data.
+- `DaytonaExecutor` keeps in-flight result state only for the request; the gateway persists safe terminal state, verification and audit to D1. It never marks a cleanup timeout or TTL as deletion proof.
 - `D1GatewayStore` implements `TaskStore`, `ExecutionStore`, `IdempotencyStore`, and `AuditSink` without changing the existing executor contract. The legacy proof MCP uses its in-memory sink only for harmless fixed resources.
 
 ## Security boundaries
@@ -157,8 +163,8 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - Official external-to-Genspark Code submission, execution identity, status, result, cancel, retry, or Code-mode integration. Phase 3 recorded `REMOTE_CODE_NOT_VERIFIED`.
 - A `GensparkCliExecutor`. Phase 3B recorded `CLI_EXECUTOR_NOT_VERIFIED` after the authorized account was blocked by the CLI's paid-plan/500-credit gate before task creation.
 - General production mutations, deployments initiated as tasks, arbitrary shell execution, or write-capable MCP tools. The only implemented gateway mutation is an exact harmless proof command, default DISABLED.
-- Operational proof of rotated Daytona credentials and production cross-request D1/idempotency/audit/execution; until then gateway execution remains DISABLED. Production D1 schema is reachable but currently has zero gateway task/execution/audit rows.
-- Multi-tenancy, operator UI, and approval workflows. Initial auth is a single-operator bearer secret only.
+- Independent post-deployment proof of Daytona execution, stop, delete and authoritative absence; this must be measured against the latest deployment. Never call unknown provider cleanup successful.
+- Multi-tenancy, self-service user accounts, approval workflows, arbitrary commands, and browser persistence of operator credentials are intentionally unsupported. The single-operator UI verifies an exact approved Cloudflare identity and keeps its token in memory only.
 - A completed live Genspark-to-MCP connection proof for a deployed URL.
 - Durable cross-request MCP audit evidence in production; the current in-memory sink is isolate-local.
 
@@ -174,6 +180,14 @@ Phase 4 completed the proof-first qualification of Daytona as execution infrastr
 - Disabled: async cancellation and retry/idempotency semantics.
 
 The adapter accepts canonical low-risk `execution` tasks with `input.command` and verified capabilities. It remains internal; no public task submission or write-capable MCP tool was added. See `docs/22_DAYTONA_EXECUTION_PLATFORM_PROOF.md` and `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`.
+
+## Operator guide
+
+Open `/` over HTTPS and enter the approved Cloudflare operator API token in the sign-in form. The browser does not persist it; refresh/logout clears it. View production executions and durable audit, or run the locked proof with a generated idempotency key. Replay does not submit a second sandbox; conflict returns HTTP 409. If an execution becomes `unknown`, do not rerun it; inspect the provider sandbox with the narrowly scoped recovery API. Only an independent provider lookup confirming absence closes cleanup. Credentials must never be pasted into chat, URLs, or source code.
+
+## Canonical contracts
+
+The authoritative current scope, schema, API, UI, Daytona lifecycle and deploy gates are indexed in `docs/43_CANONICAL_DOCUMENT_INDEX.md`. Historical phase prompts are contextual, not proof of current production state.
 
 ## Recommended next steps
 

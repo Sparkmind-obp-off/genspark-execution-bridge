@@ -17,6 +17,7 @@ class TestStore implements GatewayStore {
   async getReservedTaskId(key:string) { return this.reservations.get(key)?.task_id ?? null; }
   async createTask(t:TaskRecord) {this.tasks.set(t.task_id,t);}
   async getTask(id:string) {return this.tasks.get(id) ?? null;}
+  async listTasks(actorId:string) {return [...this.tasks.values()].filter(t=>t.actor_id===actorId);}
   async changeState(id:string,from:string,to:string) {const t=this.tasks.get(id);if (!t || t.state!==from) throw Error("storage failure");t.state=to;}
   async createExecution(e:ExecutionRecord) {this.executions.set(e.task_id,e);}
   async getExecution(id:string) {return this.executions.get(id) ?? null;}
