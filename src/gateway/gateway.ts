@@ -108,7 +108,6 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         const execution = prior ? await store.getExecution(original) : null;
         return safe({task_id:original,state:prior?.state ?? "unknown",execution_id:execution?.execution_id ?? null,verification:execution?.verification ?? "pending",result_code:execution?.result_code ?? null,replayed:true},prior ? 200 : 202);
       }
-      if (reserved === "created") {
       const decision = authorizeProof(principal,"execute","daytona.proof","isolated",task,executor);
       if (!decision.allowed) return safe({error:"POLICY_DENIED",reason_code:decision.reason_code},403);
       const check = await executor.validate(task);
