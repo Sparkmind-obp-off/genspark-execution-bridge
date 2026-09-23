@@ -144,7 +144,7 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
           provider:z.literal("daytona"),sandbox_id:z.string().min(1),session_id:z.string().min(1),command_id:z.string().min(1),
           exit_code:z.literal(0),stdout:z.literal(PROOF_MARKER+"\n"),
           logs:z.object({stdout:z.literal(PROOF_MARKER+"\n"),stderr:z.literal("")}),
-          cleanup:z.object({stopped:z.literal(true),deleted:z.literal(true)})
+          cleanup:z.object({stopped:z.literal(true),deleted:z.literal(true),postDeleteVerified:z.literal(true)})
         }));
         const output = result.output as Record<string, unknown> | undefined;
         const correlated = /^daytona:[^:]+:[^:]+$/.test(submitted.execution_id) &&
