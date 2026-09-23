@@ -1,0 +1,31 @@
+# Phase 5B — Production proof report (2026-09-23)
+
+PHASE_5B_RESULT: BLOCKED — no authenticated production proof or Daytona gateway execution; do not start Phase 6.
+CREDENTIAL_HYGIENE: PARTIAL — operator states Gate 0 was completed; Cloudflare Pages production lists encrypted `DAYTONA_API_KEY` and `GATEWAY_OPERATOR_TOKEN`, without disclosing values. Rotation/revocation of the former Phase 4 key and successful use of the replacement could not be independently confirmed here. Token-pattern scan of tracked files/history and build returned zero candidate lines for the specified signatures; this is not a comprehensive secret audit.
+AUTHENTICATION: PARTIAL — production unauthenticated POST `/execute` and GET `/executions/:task_id` returned HTTP 401. Valid operator authentication and actor correlation in production NOT_VERIFIED because the operator-managed bearer secret cannot be retrieved from Cloudflare and was not provided through an authorized secret-safe test channel. Local deterministic authentication tests passed.
+D1_DURABILITY: NOT_VERIFIED — remote D1 aggregate query succeeded for existing gateway tables with tasks=0, executions=0, audit_events=0. This proves schema access, not cross-request production persistence. Local Miniflare D1 test passed.
+IDEMPOTENCY: NOT_VERIFIED in production — deterministic replay/conflict tests passed. No authenticated production reservation, replay, conflict, or provider-submission count was observed.
+ENABLEMENT: DISABLED — both deployed immutable URL and production alias `/health` reported `production_execution:false` after deployment. The encrypted `GATEWAY_EXECUTION_ENABLED` secret is present, but its value was not read or changed; no enablement was attempted.
+DAYTONA_LIVE_GATEWAY: NOT_VERIFIED — no fresh Phase 5B live request was submitted; no sandbox was created by this run.
+VERIFICATION: NOT_VERIFIED in production — deterministic tests verify exact output, IDs, exit code, logs, and cleanup. No live provider evidence was obtained.
+CLEANUP: NOT_VERIFIED in production — code now treats only an authoritative SDK 404 as verified post-delete absence; tests cover surviving sandbox and lookup uncertainty.
+POST_DELETE_VERIFICATION: NOT_VERIFIED in production — no live sandbox deletion or subsequent provider lookup was performed.
+AUDIT: NOT_VERIFIED in production — local tests cover task-correlated replay/conflict events and safe verification metadata; no authenticated later production read was possible.
+SESSION_CORRELATION: NOT_VERIFIED in production — local tests cover sandbox/session/command identifiers; no live session was observed.
+SECURITY: PARTIAL — auth failed closed for unauthenticated requests; `/audit` returned 404; narrow locked proof policy, network-blocked sandbox request, TTL, and no cancel/retry verified by code/tests. No valid authenticated production request, actual network isolation proof, provider/response/audit secret review, or full production security attestation was possible. No secrets were requested or printed.
+TESTS: PASS — 35 passed, 0 failed, after correcting stale expected idempotency test statuses and adding SDK lookup tests.
+TYPECHECK: PASS — `npm run typecheck` exited 0.
+BUILD: PASS — `npm run build` exited 0 and generated Pages advanced-mode Worker bundle; only the validated code commit was built/deployed.
+DEPLOYMENT: PASS (disabled build only) — BYOK deploy of commit `df1a6fe9181f332a856989627b504c1f867e88d1` to existing Pages project `genspark-execution-bridge`, `main`; immutable URL https://b82c7cb5.genspark-execution-bridge.pages.dev and alias https://genspark-execution-bridge.pages.dev/health both returned HTTP 200 with `production_execution:false`. Both rejected unauthenticated execution/status with 401 and returned `/audit` 404. Verification timestamp: 2026-09-23T05:17:02Z UTC. Build artifact was produced after validation and immediately deployed from this commit; application health does not expose a cryptographic commit attestation.
+PRODUCTION_PROOF: NOT_VERIFIED — no HTTP 200 terminal proof response, replay, 409 conflict, later authenticated D1 read, Daytona IDs, exact live stdout, network evidence, or cleanup evidence. Phase 4 proof cannot substitute for Phase 5B.
+COMMIT: `df1a6fe9181f332a856989627b504c1f867e88d1` (validated/deployed implementation). Report/documentation commit and push are recorded in Git history; report does not self-predict a future SHA.
+BLOCKERS: The encrypted single-operator bearer secret is not available to this execution environment through a safe authorized test channel; the gateway is disabled. Cannot prove valid production auth, actual rotation/replacement authentication, production D1 durability/idempotency, or live provider verification/cleanup. The runbook's prerequisite ordering also requires production idempotency evidence before enablement, while the disabled gateway returns 503 before any reservation; this needs a safe, explicitly authorized prerequisite proof strategy, not a bypass or arbitrary execution endpoint.
+NEXT_ACTION: Keep gateway disabled. Operator validates old-key revocation and replacement through official controls without revealing values; arrange an authorized secret-safe way to send authenticated requests and a non-executing production D1/idempotency prerequisite proof. Only after all prerequisite gates are genuinely proven, authorize time-bounded enablement, run exactly one locked command, independently inspect durable correlated evidence/replay/conflict/stop/delete/post-delete absence, then disable again. Remain in Phase 5B until then.
+
+## What changed in this run
+
+- Fixed a critical false-positive cleanup condition: any SDK lookup error was previously interpreted as deleted; only typed Daytona 404 now counts as absent. Transport/auth/other errors fail closed.
+- Persisted safe sandbox/session/command, exact-output/log booleans and cleanup flags with the verification audit event; task-scoped replay and conflict events are now reconstructable without raw stdout or credentials.
+- Corrected deterministic idempotency tests to expect HTTP 409 on same-key changed fingerprint, independently from policy-denial tests.
+
+This report is intentionally not a Phase 5B PASS. Runtime secrets remain operator-managed; no secret values are included.

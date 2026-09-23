@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Phase 4 Daytona proof passed. Phase 5 gateway implementation is complete but remains default-DISABLED pending Gate 0 credential rotation and production proof. Phase 5B is the active production-proof closure gate. The target product is an authenticated, policy-controlled Execution Factory; production activation is not claimed until Phase 5B passes. Genspark remote execution remains disabled.
+- **Status:** Phase 4 Daytona proof passed. Phase 5B is BLOCKED, not PASS: the validated Phase 5B safety fixes were deployed on 2026-09-23, but production execution remains DISABLED (`production_execution:false`). Encrypted runtime secrets are listed, while valid operator authentication, credential rotation, cross-request D1/idempotency, and the live Daytona gateway proof have not been independently verified. See `docs/32_PHASE_5B_PRODUCTION_PROOF_REPORT.md`. Phase 6 has not started; Genspark remote execution remains disabled.
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -157,7 +157,7 @@ Deployment publishes the bridge service and safe MCP tools; it does **not** enab
 - Official external-to-Genspark Code submission, execution identity, status, result, cancel, retry, or Code-mode integration. Phase 3 recorded `REMOTE_CODE_NOT_VERIFIED`.
 - A `GensparkCliExecutor`. Phase 3B recorded `CLI_EXECUTOR_NOT_VERIFIED` after the authorized account was blocked by the CLI's paid-plan/500-credit gate before task creation.
 - General production mutations, deployments initiated as tasks, arbitrary shell execution, or write-capable MCP tools. The only implemented gateway mutation is an exact harmless proof command, default DISABLED.
-- Operational proof of rotated Daytona credentials and production cross-request D1/idempotency/audit/execution; until then gateway execution remains DISABLED.
+- Operational proof of rotated Daytona credentials and production cross-request D1/idempotency/audit/execution; until then gateway execution remains DISABLED. Production D1 schema is reachable but currently has zero gateway task/execution/audit rows.
 - Multi-tenancy, operator UI, and approval workflows. Initial auth is a single-operator bearer secret only.
 - A completed live Genspark-to-MCP connection proof for a deployed URL.
 - Durable cross-request MCP audit evidence in production; the current in-memory sink is isolate-local.
@@ -201,6 +201,6 @@ The adapter accepts canonical low-risk `execution` tasks with `input.command` an
 - Phase 4 Daytona proof report: `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`
 - Phase 5 secure gateway: `docs/25_PHASE_5_SECURE_EXECUTION_GATEWAY.md`, `docs/26_PHASE_5_IMPLEMENTATION_PROMPT.md`
 - Phase 5 implementation report: `docs/27_PHASE_5_IMPLEMENTATION_REPORT.md`
-- Phase 5B production closure: `docs/28_PHASE_5B_PRODUCTION_PROOF_CLOSURE.md`, `docs/29_PHASE_5B_PRODUCTION_PROOF_PROMPT.md`
+- Phase 5B production closure: `docs/28_PHASE_5B_PRODUCTION_PROOF_CLOSURE.md`, `docs/29_PHASE_5B_PRODUCTION_PROOF_PROMPT.md`, `docs/30_PHASE_5B_PRODUCTION_EXECUTION_PROOF_RUN.md`, `docs/32_PHASE_5B_PRODUCTION_PROOF_REPORT.md`
 
 Official sources used for Phase 3, Phase 3B, and Phase 4 are listed in their proof reports. The decisions are `REMOTE_CODE_NOT_VERIFIED` and `CLI_EXECUTOR_NOT_VERIFIED`. Genspark CLI executor proof does not prove remote Genspark Code control.
