@@ -8,7 +8,7 @@ Proof-first, executor-neutral control foundation for integrating safe task orche
 - **Production:** https://genspark-execution-bridge.pages.dev
 - **Health:** https://genspark-execution-bridge.pages.dev/health
 - **MCP:** https://genspark-execution-bridge.pages.dev/mcp
-- **Status:** Phase 4 Daytona proof passed. Phase 5 proof-only gateway is implemented and default-DISABLED pending operator credential rotation and live production gateway proof; production activation is not claimed. Existing public health/read-only MCP proof remains available. Genspark remote execution remains disabled.
+- **Status:** Phase 4 Daytona proof passed. Phase 5 gateway implementation is complete but remains default-DISABLED pending Gate 0 credential rotation and production proof. Phase 5B is the active production-proof closure gate. The target product is an authenticated, policy-controlled Execution Factory; production activation is not claimed until Phase 5B passes. Genspark remote execution remains disabled.
 - **GitHub:** https://github.com/Sparkmind-obp-off/genspark-execution-bridge
 
 ## Phase 1 scope
@@ -199,5 +199,8 @@ The adapter accepts canonical low-risk `execution` tasks with `input.command` an
 - Phase 3B CLI proof report: `docs/20_PHASE_3B_GENSPARK_CLI_PROOF_REPORT.md`
 - Phase 4 Daytona proof plan: `docs/22_DAYTONA_EXECUTION_PLATFORM_PROOF.md`
 - Phase 4 Daytona proof report: `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`
+- Phase 5 secure gateway: `docs/25_PHASE_5_SECURE_EXECUTION_GATEWAY.md`, `docs/26_PHASE_5_IMPLEMENTATION_PROMPT.md`
+- Phase 5 implementation report: `docs/27_PHASE_5_IMPLEMENTATION_REPORT.md`
+- Phase 5B production closure: `docs/28_PHASE_5B_PRODUCTION_PROOF_CLOSURE.md`, `docs/29_PHASE_5B_PRODUCTION_PROOF_PROMPT.md`
 
 Official sources used for Phase 3, Phase 3B, and Phase 4 are listed in their proof reports. The decisions are `REMOTE_CODE_NOT_VERIFIED` and `CLI_EXECUTOR_NOT_VERIFIED`. Genspark CLI executor proof does not prove remote Genspark Code control.
