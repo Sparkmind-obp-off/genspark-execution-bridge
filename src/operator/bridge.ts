@@ -1,6 +1,7 @@
 import { Daytona, DaytonaNotFoundError } from "@daytona/sdk";
 import { D1GatewayStore } from "../storage/gateway-store";
 import { Auditor } from "../audit/audit";
+import { TaskStateMachine } from "../domain/state-machine";
 import { createGateway, normalizeOperatorToken, PROOF_COMMAND, type GatewayBindings } from "../gateway/gateway";
 
 // This bridge accepts ONLY an active Cloudflare token for this project's own account.
@@ -55,6 +56,35 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
       const match = /^daytona:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(execution?.execution_id ?? "");
       if (!match || !env.DAYTONA_API_KEY) return reply({error:"UNAVAILABLE"},503);
       const client = new Daytona({apiKey:env.DAYTONA_API_KEY,requestTimeoutMs:15000});
+      const reconcile = async (): Promise<boolean> => {
+        const events = await store.auditForTask("operator",taskId);
+        const proof = events.find(e => e.event === "verification.rejected" && e.request_id === task.request_id && e.execution_id === execution?.execution_id);
+        const details = proof?.details as Record<string, unknown> | undefined;
+        const cleanup = events.find(e => e.event === "provider.cleanup_recovered" && e.execution_id === execution?.execution_id && e.outcome === "verified");
+        const cleaned = cleanup?.details as Record<string, unknown> | undefined;
+        if (!proof || !cleanup || !details || !cleaned ||
+          details.provider !== "daytona" || details.provider_error_code !== "DAYTONA_CLEANUP_FAILED" ||
+          details.sandbox_id !== match[1] || details.command_id !== match[2] ||
+          details.session_id !== `bridge-${taskId}` || details.sandbox_state !== "started" ||
+          details.exit_code !== 0 || details.output_exact !== true || details.logs_exact !== true ||
+          cleaned.sandbox_id !== match[1] || cleaned.labels_verified !== true ||
+          cleaned.stopped !== true || cleaned.deleted !== true || cleaned.postDeleteVerified !== true ||
+          events.filter(e => e.event === "provider.requested").length !== 1) return false;
+        const auditor = new Auditor(store);
+        if (execution?.state === "unknown") await store.changeExecution(taskId,"unknown",{
+          ...execution,state:"succeeded",verification:"accepted",result_code:"PROOF_VERIFIED"});
+        if (task.state === "unknown") {
+          new TaskStateMachine("unknown").transition("succeeded");
+          await store.changeState(taskId,"unknown","succeeded");
+        }
+        if (!events.some(e => e.event === "verification.completed")) {
+          await auditor.emit({event:"verification.completed",request_id:crypto.randomUUID(),actor:"operator",task_id:taskId,
+            execution_id:execution?.execution_id ?? undefined,outcome:"PROOF_VERIFIED",details:{...details,cleanup:{stopped:true,deleted:true,postDeleteVerified:true},reconciled:true}});
+          await auditor.emit({event:"execution.completed",request_id:crypto.randomUUID(),actor:"operator",task_id:taskId,
+            execution_id:execution?.execution_id ?? undefined,outcome:"PROOF_VERIFIED"});
+        }
+        return true;
+      };
       try {
         const sandbox = await client.get(match[1]);
         const labelsVerified = sandbox.labels?.bridge === "genspark-execution-bridge" && sandbox.labels?.task_id === taskId;
@@ -75,11 +105,14 @@ export async function operatorBridge(request: Request, env: GatewayBindings): Pr
         }
         if (!absent) return reply({task_id:taskId,cleanup_verified:false},202);
         await new Auditor(store).emit({event:"provider.cleanup_recovered",request_id:crypto.randomUUID(),actor:"operator",
-          task_id:taskId,execution_id:execution?.execution_id ?? undefined,outcome:"verified",details:{sandbox_id:match[1],stopped:true,deleted:true,postDeleteVerified:true}});
-        return reply({task_id:taskId,sandbox_id:match[1],cleanup_verified:true,post_delete_absent:true});
+          task_id:taskId,execution_id:execution?.execution_id ?? undefined,outcome:"verified",details:{sandbox_id:match[1],labels_verified:true,stopped:true,deleted:true,postDeleteVerified:true}});
+        const verified = await reconcile();
+        return reply({task_id:taskId,sandbox_id:match[1],cleanup_verified:true,post_delete_absent:true,proof_verified:verified});
       } catch (error) {
-        if (error instanceof DaytonaNotFoundError && error.statusCode === 404)
-          return reply({task_id:taskId,sandbox_id:match[1],absent:true});
+        if (error instanceof DaytonaNotFoundError && error.statusCode === 404) {
+          const verified = request.method === "POST" ? await reconcile() : task.state === "succeeded";
+          return reply({task_id:taskId,sandbox_id:match[1],absent:true,proof_verified:verified});
+        }
         return reply({error:"PROVIDER_UNCERTAIN"},503);
       }
     }

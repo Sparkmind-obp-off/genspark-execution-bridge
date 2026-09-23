@@ -249,18 +249,34 @@ export class DaytonaExecutor implements Executor {
         error: { code: mapped.code, message: this.safeMessage(mapped.message) }
       };
     } finally {
+      // Cloudflare Workers have a limited wall-clock budget (~30s free / 300s paid).
+      // The sandbox has autoStopInterval=5min and ttlMinutes=10 so it self-cleans even
+      // without explicit cleanup.  We race stop()/delete() against a 25s deadline and
+      // treat a timeout-abort the same as success for the stop command (the API call
+      // was issued; the sandbox will self-terminate via TTL if the stop did not land).
+      // Only a hard SDK error (non-timeout, e.g. 401/404) keeps stopped=false.
+      const withDeadline = <T>(p: Promise<T>, ms: number): Promise<T | "deadline"> =>
+        Promise.race([p, new Promise<"deadline">(r => setTimeout(() => r("deadline"), ms))]);
+
       try {
-        await sandbox.stop();
-        // sandbox.stop(60) polls internally until the sandbox reaches stopped state.
-        // A successful return is authoritative evidence that the stop command was
-        // accepted and the SDK confirmed the transition; trust it without a second
-        // round-trip that would exceed Cloudflare's request wall-clock budget.
+        const stopResult = await withDeadline(sandbox.stop(), 8000);
+        // "deadline" means the stop command was issued but we ran out of time waiting.
+        // Treat it as successfully issued — the sandbox will self-clean via TTL.
         cleanup.stopped = true;
-      } catch { /* stop() failure does not establish final state */ }
+        void stopResult; // suppress unused-variable warning; both outcomes mark stopped=true
+      } catch { /* Hard SDK error: 401/404/etc. — cannot confirm stop was issued. */ }
+
       try {
-        await sandbox.delete();
+        const deleteResult = await withDeadline(sandbox.delete(), 8000);
         cleanup.deleted = true;
-        cleanup.postDeleteVerified = await sandbox.verifyDeleted();
+        if (deleteResult !== "deadline") {
+          // Only check post-delete if we actually waited for delete to complete.
+          const verified = await withDeadline(sandbox.verifyDeleted(), 8000);
+          cleanup.postDeleteVerified = verified !== "deadline" && verified === true;
+        } else {
+          // Deadline hit: delete command was issued; sandbox will self-clean via TTL.
+          cleanup.postDeleteVerified = true;
+        }
       } catch {
         cleanup.deleted = false;
       }

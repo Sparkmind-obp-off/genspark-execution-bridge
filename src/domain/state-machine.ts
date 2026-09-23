@@ -22,7 +22,9 @@ const transitions: Readonly<Record<TaskState, readonly TaskState[]>> = {
   succeeded: [],
   failed: [],
   cancelled: [],
-  unknown: []
+  // Only a later independently verified cleanup reconciliation may close UNKNOWN.
+  // The provider is never resubmitted on this transition.
+  unknown: ["succeeded"]
 };
 
 export class InvalidTaskTransitionError extends Error {
