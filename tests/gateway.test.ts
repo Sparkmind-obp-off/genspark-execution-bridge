@@ -62,7 +62,7 @@ test("proof policy excludes arbitrary shell, risk, capabilities, secret, product
   assert.equal(can(base),true);
   for(const changed of [{input:{command:"cat /etc/passwd"}},{risk_level:"high" as const},{requested_capabilities:["retry"]},{input:{command:PROOF_COMMAND,password:"secret"}},{type:"production_deployment" as const}]) assert.equal(can({...base,...changed}),false);
   const {handle,store,calls}=setup();
-  for(const command of ["echo arbitrary",`${PROOF_COMMAND}; echo extra`]) assert.equal((await handle(request(payload("test-idempotency-key-12345",command)),env)).status,403);
+  for(const [index,command] of ["echo arbitrary",`${PROOF_COMMAND}; echo extra`].entries()) assert.equal((await handle(request(payload(`test-policy-denial-key-${index}`,command)),env)).status,403);
   assert.equal(store.tasks.size,0);assert.equal(calls.created,0);
 });
 
@@ -80,13 +80,25 @@ test("authenticated proof persists verified terminal state, audit, replay, and c
   const replay=await handle(request(payload()),env);assert.equal(replay.status,200);
   assert.deepEqual((await replay.json() as {task_id:string}).task_id,response.task_id);
   assert.deepEqual(calls,{created:1,stopped:1,deleted:1});
-  assert.equal((await handle(request(payload("test-idempotency-key-12345","echo wrong")),env)).status,403);
+  const wrongCommand=await handle(request(payload("test-idempotency-key-12345","echo wrong")),env);
+  assert.equal(wrongCommand.status,409);
+  assert.equal((await wrongCommand.json() as {error:string}).error,"IDEMPOTENCY_CONFLICT");
   const conflict=await handle(request({...payload(),task:{...payload().task,risk_level:"medium"}}),env);
-  assert.equal(conflict.status,403);
+  assert.equal(conflict.status,409);
+  assert.equal((await conflict.json() as {error:string}).error,"IDEMPOTENCY_CONFLICT");
   const read=await handle(new Request(`https://localhost/executions/${response.task_id}`,{headers:{authorization:`Bearer ${TOKEN}`}}),env);
   assert.equal(read.status,200);const data=await read.json() as {audit:AuditEvent[]};assert.ok(data.audit.length>5);
   assert.equal(JSON.stringify(data).includes(TOKEN),false);
   assert.equal(JSON.stringify(data).includes(env.DAYTONA_API_KEY),false);
+  assert.equal(data.audit.some(e=>e.event==="idempotency.replayed" && e.task_id===response.task_id),true);
+  assert.equal(data.audit.filter(e=>e.event==="idempotency.conflicted" && e.task_id===response.task_id).length,2);
+  const verification=data.audit.find(e=>e.event==="verification.completed")?.details as {session_id:string;sandbox_id:string;command_id:string;cleanup:{stopped:boolean;deleted:boolean;postDeleteVerified:boolean};output_exact:boolean;logs_exact:boolean};
+  assert.equal(verification.session_id,`bridge-${response.task_id}`);
+  assert.equal(verification.sandbox_id,"sandbox-proof");
+  assert.equal(verification.command_id,"command-proof");
+  assert.deepEqual(verification.cleanup,{stopped:true,deleted:true,postDeleteVerified:true});
+  assert.equal(verification.output_exact,true);
+  assert.equal(verification.logs_exact,true);
 });
 
 test("reservation conflicts across actor and fingerprint; concurrent reservation chooses one",async()=>{

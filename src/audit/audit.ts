@@ -16,6 +16,7 @@ export const auditEventNames = [
   "task.persisted",
   "idempotency.reserved",
   "idempotency.replayed",
+  "idempotency.conflicted",
   "execution.state_changed",
   "provider.requested",
   "provider.responded",

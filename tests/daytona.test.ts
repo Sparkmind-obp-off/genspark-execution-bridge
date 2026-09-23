@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DaytonaNotFoundError } from "@daytona/sdk";
 import { redact } from "../src/audit/audit";
 import type { Task } from "../src/domain/task";
 import {
@@ -29,10 +30,12 @@ interface FakeOptions {
   logs?: DaytonaCommandLogs;
   stopError?: Error;
   deleteError?: Error;
+  lookupError?: Error;
+  stillExists?: boolean;
 }
 
 function fakeProvider(options: FakeOptions = {}) {
-  const calls = { create: 0, stop: 0, delete: 0 };
+  const calls = { create: 0, stop: 0, delete: 0, lookup: 0 };
   const sandbox: DaytonaSandboxHandle = {
     id: "sandbox-proof-001",
     state: "started",
@@ -56,6 +59,11 @@ function fakeProvider(options: FakeOptions = {}) {
     async delete() {
       calls.delete += 1;
       if (options.deleteError) throw options.deleteError;
+    },
+    async verifyDeleted() {
+      calls.lookup += 1;
+      if (options.lookupError) throw options.lookupError;
+      return !options.stillExists;
     }
   };
   const provider: DaytonaProvider = {
@@ -80,13 +88,31 @@ test("Daytona maps a successful verified execution with provider correlation", a
     provider: "daytona",
     sandbox_id: "sandbox-proof-001",
     command_id: "command-proof-001",
+    session_id: "bridge-daytona-test-001",
     exit_code: 0,
     stdout: "PHASE_4_EXECUTION_PROOF_OK\n",
     stderr: "",
     logs: { stdout: "PHASE_4_EXECUTION_PROOF_OK\n", stderr: "" },
     cleanup: { stopped: true, deleted: true, postDeleteVerified: true }
   });
-  assert.deepEqual(fake.calls, { create: 1, stop: 1, delete: 1 });
+  assert.deepEqual(fake.calls, { create: 1, stop: 1, delete: 1, lookup: 1 });
+});
+
+test("SDK post-delete lookup accepts only authoritative 404, never transport or auth errors", async () => {
+  const provider = new DaytonaSdkProvider("test-only-sdk-key");
+  let lookup: () => Promise<unknown> = async () => ({ id: "sandbox-test" });
+  Object.defineProperty(provider, "client", { value: {
+    create: async () => ({ id: "sandbox-test", state: "started", process: {}, stop: async () => {}, delete: async () => {} }),
+    get: async () => lookup()
+  } });
+  const sandbox = await provider.create({name:"proof",labels:{},networkBlockAll:true,ttlMinutes:10});
+  assert.equal(await sandbox.verifyDeleted(), false);
+  lookup = async () => { throw new DaytonaNotFoundError("not found", 404); };
+  assert.equal(await sandbox.verifyDeleted(), true);
+  for (const error of [new Error("network unavailable"), new Error("authentication rejected"), new DaytonaNotFoundError("unconfirmed")]) {
+    lookup = async () => { throw error; };
+    await assert.rejects(sandbox.verifyDeleted(), error);
+  }
 });
 
 test("Daytona fails closed when credentials are missing", () => {
@@ -123,7 +149,17 @@ test("Daytona maps execution failure and still cleans up", async () => {
   assert.equal(status.state, "failed");
   const result = await executor.result(status.execution_id);
   assert.equal(result.error?.code, "DAYTONA_EXECUTION_FAILED");
-  assert.deepEqual(fake.calls, { create: 1, stop: 1, delete: 1 });
+  assert.deepEqual(fake.calls, { create: 1, stop: 1, delete: 1, lookup: 1 });
+});
+
+test("Daytona rejects missing or uncertain post-delete evidence", async () => {
+  for (const options of [{ stillExists: true }, { lookupError: new Error("lookup unavailable") }]) {
+    const fake = fakeProvider(options);
+    const executor = new DaytonaExecutor(fake.provider);
+    const status = await executor.submit(task);
+    assert.equal((await executor.result(status.execution_id)).error?.code, "DAYTONA_CLEANUP_FAILED");
+    assert.equal(fake.calls.lookup, 1);
+  }
 });
 
 test("Daytona fails closed when result or command identity is missing", async () => {

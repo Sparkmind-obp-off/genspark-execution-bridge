@@ -1,4 +1,4 @@
-import { Daytona } from "@daytona/sdk";
+import { Daytona, DaytonaNotFoundError } from "@daytona/sdk";
 import { redact } from "../audit/audit";
 import type { Task } from "../domain/task";
 import {
@@ -90,7 +90,14 @@ export class DaytonaSdkProvider implements DaytonaProvider {
       stop: () => sandbox.stop(60),
       delete: () => sandbox.delete(60, true),
       verifyDeleted: async () => {
-        try { await this.client.get(sandbox.id); return false; } catch { return true; }
+        try {
+          await this.client.get(sandbox.id);
+          return false;
+        } catch (error) {
+          // Only an authoritative 404 proves absence; auth/transport/5xx errors do not.
+          if (error instanceof DaytonaNotFoundError && error.statusCode === 404) return true;
+          throw error;
+        }
       }
     };
   }

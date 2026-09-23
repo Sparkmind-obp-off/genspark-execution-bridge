@@ -98,14 +98,19 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
       if (!validateTask(task).valid) return safe({error:"INVALID_REQUEST"},400);
       const requestFingerprint = await fingerprint(input.task);
       const reserved = await store.reserve({key:input.idempotency_key,actor_id:principal.actor_id,operation:"execute",fingerprint:requestFingerprint,task_id:taskId,created_at:task.created_at});
-      if (reserved === "conflict") return safe({error:"IDEMPOTENCY_CONFLICT"},409);
+      if (reserved === "conflict") {
+        const original = await store.getReservedTaskId(input.idempotency_key);
+        const prior = original ? await store.getTask(original) : null;
+        if (prior?.actor_id === principal.actor_id && original) await event("idempotency.conflicted",original,"rejected");
+        return safe({error:"IDEMPOTENCY_CONFLICT"},409);
+      }
       if (reserved === "replayed") {
-        await event("idempotency.replayed");
         // Look up the original ID via key, not the newly generated ID.
         const original = await store.getReservedTaskId(input.idempotency_key);
         if (!original) throw new StorageFailure();
         const prior = await store.getTask(original);
         const execution = prior ? await store.getExecution(original) : null;
+        await event("idempotency.replayed",original,"replayed",execution?.execution_id ?? undefined);
         return safe({task_id:original,state:prior?.state ?? "unknown",execution_id:execution?.execution_id ?? null,verification:execution?.verification ?? "pending",result_code:execution?.result_code ?? null,replayed:true},prior ? 200 : 202);
       }
       const decision = authorizeProof(principal,"execute","daytona.proof","isolated",task,executor);
@@ -155,7 +160,16 @@ export function createGateway(dependencies?: { store: GatewayStore; executor: Ex
         const state: TaskState = success ? "succeeded" : ambiguous ? "unknown" : "failed";
         const code = success ? "PROOF_VERIFIED" : ambiguous ? "PROVIDER_UNCERTAIN" : "VERIFICATION_REJECTED";
         await store.changeExecution(taskId,"running",{...pending,execution_id:submitted.execution_id,provider_id:submitted.execution_id,state,verification:verified.accepted ? "accepted" : "rejected",result_code:code});
-        await event(success ? "verification.completed" : "verification.rejected",taskId,code,submitted.execution_id, { session_id: output?.session_id });
+        await event(success ? "verification.completed" : "verification.rejected",taskId,code,submitted.execution_id, {
+          sandbox_id: output?.sandbox_id,
+          session_id: output?.session_id,
+          command_id: output?.command_id,
+          exit_code: output?.exit_code,
+          output_exact: output?.stdout === PROOF_MARKER + "\n",
+          logs_exact: (output?.logs as {stdout?:unknown;stderr?:unknown} | undefined)?.stdout === PROOF_MARKER + "\n" &&
+            (output?.logs as {stderr?:unknown} | undefined)?.stderr === "",
+          cleanup: output?.cleanup
+        });
         await transition(state);
         await event(success ? "execution.completed" : "execution.failed",taskId,code,submitted.execution_id);
         await event("audit.persisted",taskId);
