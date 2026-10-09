@@ -34,3 +34,19 @@ https://www.genspark.ai/code is a UI location. Its existence does not prove a pu
 
 ## Current decision
 Build the architecture now, but keep Genspark execution capabilities disabled until independently verified.
+
+
+## Update 2026-10-09 — GenCode catalog and provider boundary
+
+Official GenCode documentation now describes a Genspark-hosted model catalog across nine families (Claude, GPT, Gemini, DeepSeek, GLM, MiniMax, Kimi, Grok, and Nemotron), an account-authenticated CLI, the gencode models inventory command, and scriptable gencode run output. The available models and credits must be checked in the intended account.
+
+Source: https://www.genspark.ai/helpcenter/gencode
+
+This changes the discovery target, not the verification status:
+- Build-time use of Genspark GenCode/Genspark Code is selected.
+- Account-specific model inventory is not verified in this session.
+- The existence of a Genspark-hosted model catalog or CLI credential variables does not establish a generic public app-facing LLM REST API.
+- Remote Genspark Code execution via the bridge remains unverified.
+- The historical 2026-09-22 legacy CLI proof was blocked before task creation on the then-authenticated account; it must not be extrapolated to the current GenCode product.
+
+Current decision and required gates: docs/45_GENSPARK_GENCODE_PROVIDER_DECISION.md.
