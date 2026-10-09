@@ -233,3 +233,11 @@ Official references:
 - https://www.genspark.ai/helpcenter/gencode
 - https://www.genspark.ai/helpcenter/credits-guide
 - https://www.genspark.ai/helpcenter/connectors-and-integrations
+
+
+## Mini Genspark boundary and implementation
+
+This repository is the **execution/control bridge**, not the complete Mini Genspark workspace. Keep the bridge; build the user-facing Mini Genspark app in a separate main repository and reuse only verified task/policy/provider-neutral contracts. Do not treat the current proof-only API as a general multi-user production runtime.
+
+- Product boundary, current provider map, phases, scripts and the MK research acceptance case: [docs/46_MINI_GENSPARK_SCOPE_AND_IMPLEMENTATION.md](docs/46_MINI_GENSPARK_SCOPE_AND_IMPLEMENTATION.md)
+- Read-only account-specific GenCode model inventory: run `bash scripts/gencode-provider-inventory.sh` on the developer machine after installing and signing in to the official GenCode CLI. This lists the models visible to that account; it does not submit a generation task or prove a general app-facing REST API.
