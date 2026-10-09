@@ -14,5 +14,6 @@ These documents were **absent in the inspected repository** and were authored fr
 | 43_CANONICAL_DOCUMENT_INDEX.md | Hierarchy and navigation |
 | 44_ONE_SHOT_1100_CREDIT_EXECUTION_CONTRACT.md | Evidence and final reporting | 
 | 45_GENSPARK_GENCODE_PROVIDER_DECISION.md | Current official GenCode evidence, build-time selection, and runtime API verification gates |
+| 46_MINI_GENSPARK_SCOPE_AND_IMPLEMENTATION.md | Mini Genspark vs bridge boundary, provider map, implementation phases, script policy, and research test case |
 
 Historical reports 01–35 remain contextual; prior phase prompts cannot override runtime truth or authorize arbitrary remote execution.
