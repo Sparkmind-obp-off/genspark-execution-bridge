@@ -54,3 +54,14 @@ A live network-blocked disposable sandbox was created through official TypeScrip
 Decision: `DAYTONA_EXECUTION_PROOF_PASS`. Implement the smallest `DaytonaExecutor` behind a replaceable provider boundary. Preserve the canonical executor signatures and fail-closed policy. Enable only synchronous low-risk `execution` tasks with verified `submit`, local status/result mapping, code mode, read/filesystem evidence, and mandatory cleanup. Keep cancel and retry disabled because async cancellation and retry/idempotency were not proven. Do not expose a public Daytona submission endpoint in Phase 4.
 
 Evidence: `docs/24_PHASE_4_DAYTONA_PROOF_REPORT.md`.
+
+
+## D013 — Select Genspark for Mini Genspark build-time work, not as an assumed runtime API
+
+On 2026-10-09, current official GenCode documentation was reviewed. GenCode provides an account-authenticated workspace/CLI, a live model inventory command, scripted run output, and a Genspark-hosted catalog spanning Claude, GPT, Gemini, DeepSeek, GLM, MiniMax, Kimi, Grok, and Nemotron. Usage is charged to the authenticated Genspark account in credits.
+
+Decision: use the user's authorized Genspark workspace (GenCode/Genspark Code) as the primary build-time environment for developing Mini Genspark. Do not wire the app's runtime to an assumed generic Genspark API. Keep the runtime provider adapter-neutral and use only an app-facing API with an official contract until an external Genspark runtime API is independently verified. Do not use undocumented UI endpoints or browser-session credentials.
+
+Account-specific models and costs must be checked in the live picker or with the official GenCode CLI command. The existing 2026-09-22 legacy CLI block is historical and does not verify the newer GenCode path.
+
+Evidence and acceptance gates: docs/45_GENSPARK_GENCODE_PROVIDER_DECISION.md. Official source: https://www.genspark.ai/helpcenter/gencode.
