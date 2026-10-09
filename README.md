@@ -219,3 +219,17 @@ The authoritative current scope, schema, API, UI, Daytona lifecycle and deploy g
 - Phase 5B production closure: `docs/28_PHASE_5B_PRODUCTION_PROOF_CLOSURE.md`, `docs/29_PHASE_5B_PRODUCTION_PROOF_PROMPT.md`, `docs/30_PHASE_5B_PRODUCTION_EXECUTION_PROOF_RUN.md`, `docs/32_PHASE_5B_PRODUCTION_PROOF_REPORT.md`
 
 Official sources used for Phase 3, Phase 3B, and Phase 4 are listed in their proof reports. The decisions are `REMOTE_CODE_NOT_VERIFIED` and `CLI_EXECUTOR_NOT_VERIFIED`. Genspark CLI executor proof does not prove remote Genspark Code control.
+
+
+## Current Genspark provider decision — 2026-10-09
+
+**Selected for building Mini Genspark:** use the authorized Genspark GenCode/Genspark Code workspace as the build-time coding environment. Current official GenCode documentation lists nine model families (Claude, GPT, Gemini, DeepSeek, GLM, MiniMax, Kimi, Grok, and Nemotron). The actual model list and credit cost must be checked in the account's live picker or with the official `gencode models` command.
+
+**Not enabled as application runtime:** the public documentation reviewed does not establish a generic external LLM API contract for Mini Genspark to call. GenCode CLI credentials/catalog are not treated as proof of such an API. The Genspark runtime/remote executor therefore remains fail-closed until the interface, authentication, usage terms, cost behavior, and a complete task/result proof are independently verified.
+
+This is a current provider decision, not a claim that GenCode was already tested successfully against the owner account during this update. Account model visibility and a harmless live run remain unchecked. Full rationale and verification plan: [docs/45_GENSPARK_GENCODE_PROVIDER_DECISION.md](docs/45_GENSPARK_GENCODE_PROVIDER_DECISION.md).
+
+Official references:
+- https://www.genspark.ai/helpcenter/gencode
+- https://www.genspark.ai/helpcenter/credits-guide
+- https://www.genspark.ai/helpcenter/connectors-and-integrations
